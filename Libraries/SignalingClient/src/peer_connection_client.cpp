@@ -41,8 +41,7 @@ PeerConnectionClient::PeerConnectionClient() :
     state_(NOT_CONNECTED),
     my_id_(-1),
 	heartbeat_tick_ms_(kHeartbeatDefault),
-	server_address_ssl_(false),
-	auth_provider_(nullptr)
+	server_address_ssl_(false)
 {
 	// use the current thread or wrap a thread for signaling_thread_
 	auto thread = rtc::Thread::Current();
@@ -141,13 +140,6 @@ void PeerConnectionClient::Connect(const std::string& server, int port,
 		resolver_->SignalDone.connect(this, &PeerConnectionClient::OnResolveResult);
 		resolver_->Start(server_address_);
 	} 
-	else if (auth_provider_ != nullptr)
-	{
-		if (!auth_provider_->Authenticate())
-		{
-			callback_->OnServerConnectionFailure();
-		}
-	}
 	else
 	{
 		DoConnect();
@@ -166,17 +158,7 @@ void PeerConnectionClient::OnResolveResult(rtc::AsyncResolverInterface* resolver
 	else
 	{
 		server_address_ = resolver_->address();
-		if (auth_provider_ != nullptr)
-		{
-			if (!auth_provider_->Authenticate())
-			{
-				callback_->OnServerConnectionFailure();
-			}
-		}
-		else
-		{
-			DoConnect();
-		}
+		DoConnect();
 	}
 }
 
@@ -727,32 +709,14 @@ void PeerConnectionClient::OnMessage(rtc::Message* msg)
 	}
 }
 
-void PeerConnectionClient::OnAuthenticationComplete(const AuthenticationProviderResult& result)
-{
-	if (!result.successFlag || result.accessToken.empty())
-	{
-		if (callback_ != nullptr)
-		{
-			callback_->OnServerConnectionFailure();
-		}
-		return;
-	}
-
-	authorization_header_ = "Bearer " + result.accessToken;
-
-	// and we can log in
-	DoConnect();
-}
-
 const std::string& PeerConnectionClient::authorization_header() const
 {
 	return authorization_header_;
 }
 
-void PeerConnectionClient::SetAuthenticationProvider(AuthenticationProvider* authProvider)
+void PeerConnectionClient::SetAuthorizationHeader(const std::string& authorizationHeaderValue)
 {
-	auth_provider_ = authProvider;
-	auth_provider_->RegisterObserver(this);
+	authorization_header_ = authorizationHeaderValue;
 }
 
 void PeerConnectionClient::OnHeartbeatGetConnect(rtc::AsyncSocket* socket)

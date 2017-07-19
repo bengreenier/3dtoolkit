@@ -15,17 +15,6 @@ public:
 };
 
 /// <summary>
-/// Represents an observer for an authentication provider result
-/// </summary>
-struct AuthenticationProviderObserver
-{
-	virtual void OnAuthenticationComplete(const AuthenticationProviderResult& result) = 0;
-
-protected:
-	virtual ~AuthenticationProviderObserver() {}
-};
-
-/// <summary>
 /// Base class that represents an authentication provider
 /// </summary>
 class AuthenticationProvider
@@ -33,12 +22,10 @@ class AuthenticationProvider
 public:
 	AuthenticationProvider() {}
 
-	void RegisterObserver(AuthenticationProviderObserver* callback) { callback_ = callback; }
+	sigslot::signal1<const AuthenticationProviderResult&> SignalAuthenticationComplete;
 
 	virtual bool Authenticate() = 0;
 
 protected:
 	virtual ~AuthenticationProvider() {}
-
-	AuthenticationProviderObserver* callback_;
 };

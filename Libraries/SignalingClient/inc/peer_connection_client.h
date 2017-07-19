@@ -47,8 +47,7 @@ protected:
 };
 
 class PeerConnectionClient : public sigslot::has_slots<>,
-                             public rtc::MessageHandler,
-                             public AuthenticationProviderObserver
+                             public rtc::MessageHandler
 {
 public:
 	enum State
@@ -89,12 +88,9 @@ public:
 	// implements the MessageHandler interface
 	void OnMessage(rtc::Message* msg);
 
-	// implements the AuthenticationProviderObserver interface
-	void OnAuthenticationComplete(const AuthenticationProviderResult& result) override;
-
 	const std::string& authorization_header() const;
 
-	void SetAuthenticationProvider(AuthenticationProvider* authProvider);
+	void SetAuthorizationHeader(const std::string& authorizationHeaderValue);
 
 	int heartbeat_ms() const;
 
@@ -164,7 +160,6 @@ protected:
 	std::string notification_data_;
 	std::string client_name_;
 	std::string authorization_header_;
-	AuthenticationProvider* auth_provider_;
 	Peers peers_;
 	State state_;
 	int my_id_;

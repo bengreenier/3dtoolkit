@@ -6,7 +6,7 @@
 
 #include "DeviceResources.h"
 #include "CubeRenderer.h"
-#include "server_authentication_provider.h"
+#include "initializer.h"
 
 #ifdef TEST_RUNNER
 #include "test_runner.h"
@@ -139,78 +139,86 @@ void InputUpdate(const std::string& message)
 //--------------------------------------------------------------------------------------
 // WebRTC
 //--------------------------------------------------------------------------------------
-int InitWebRTC(char* server, int port, int heartbeat, const ServerAuthenticationProvider::ServerAuthInfo& authInfo)
+int InitWebRTC(std::string configPath)
 {
 	rtc::EnsureWinsockInit();
 	rtc::Win32Thread w32_thread;
 	rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
 
+	InitializerWrapper application(configPath, [&](Initializer::InitializedValues values)
+	{
 #ifdef NO_UI
-	DefaultMainWindow wnd(server, port, true, true, true);
+		DefaultMainWindow wnd(values.serverAddress.c_str(), values.serverPort, true, true, true);
 #else // NO_UI
-	DefaultMainWindow wnd(server, port, FLAG_autoconnect, FLAG_autocall, false, 1280, 720);
+		DefaultMainWindow wnd(values.serverAddress.c_str(), values.serverPort, FLAG_autoconnect, FLAG_autocall, false, 1280, 720);
 #endif // NO_UI
 
-	if (!wnd.Create())
-	{
-		RTC_NOTREACHED();
-		return -1;
-	}
-
-	// Initializes the device resources.
-	g_deviceResources = new DeviceResources();
-	g_deviceResources->SetWindow(wnd.handle());
-
-	// Initializes the cube renderer.
-	g_cubeRenderer = new CubeRenderer(g_deviceResources);
-
-	// Creates and initializes the video helper library.
-	g_videoHelper = new VideoHelper(
-		g_deviceResources->GetD3DDevice(),
-		g_deviceResources->GetD3DDeviceContext());
-
-	g_videoHelper->Initialize(g_deviceResources->GetSwapChain());
-
-	rtc::InitializeSSL();
-
-	std::shared_ptr<ServerAuthenticationProvider> authProvider;
-	PeerConnectionClient client;
-
-	if (!authInfo.authority.empty())
-	{
-		authProvider.reset(new ServerAuthenticationProvider(authInfo));
-		client.SetAuthenticationProvider(authProvider.get());
-	}
-
-	client.SetHeartbeatMs(heartbeat);
-
-	rtc::scoped_refptr<Conductor> conductor(
-		new rtc::RefCountedObject<Conductor>(
-			&client, &wnd, &FrameUpdate, &InputUpdate, g_videoHelper));
-
-	// Main loop.
-	MSG msg;
-	BOOL gm;
-	while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1)
-	{
-		if (!wnd.PreTranslateMessage(&msg))
+		if (!wnd.Create())
 		{
-			::TranslateMessage(&msg);
-			::DispatchMessage(&msg);
+			RTC_NOTREACHED();
+			return -1;
 		}
 
-		if (conductor->connection_active() || client.is_connected())
+		// Initializes the device resources.
+		g_deviceResources = new DeviceResources();
+		g_deviceResources->SetWindow(wnd.handle());
+
+		// Initializes the cube renderer.
+		g_cubeRenderer = new CubeRenderer(g_deviceResources);
+
+		// Creates and initializes the video helper library.
+		g_videoHelper = new VideoHelper(
+			g_deviceResources->GetD3DDevice(),
+			g_deviceResources->GetD3DDeviceContext());
+
+		g_videoHelper->Initialize(g_deviceResources->GetSwapChain());
+
+		rtc::InitializeSSL();
+		PeerConnectionClient client;
+
+		if (!values.accessToken.empty())
 		{
-			g_deviceResources->Present();
+			client.SetAuthorizationHeader("Bearer " + values.accessToken);
 		}
-	}
 
-	rtc::CleanupSSL();
+		rtc::scoped_refptr<Conductor> conductor(
+			new rtc::RefCountedObject<Conductor>(
+				&client, &wnd, &FrameUpdate, &InputUpdate, g_videoHelper));
 
-	// Cleanup.
-	delete g_videoHelper;
-	delete g_cubeRenderer;
-	delete g_deviceResources;
+		if (!values.turnUsername.empty() && !values.turnPassword.empty())
+		{
+			conductor->SetTurnCredentials(values.turnUsername, values.turnPassword);
+		}
+
+		// Main loop.
+		MSG msg;
+		BOOL gm;
+		while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1)
+		{
+			if (!wnd.PreTranslateMessage(&msg))
+			{
+				::TranslateMessage(&msg);
+				::DispatchMessage(&msg);
+			}
+
+			if (conductor->connection_active() || client.is_connected())
+			{
+				g_deviceResources->Present();
+			}
+		}
+
+		// Cleanup.
+		delete g_videoHelper;
+		delete g_cubeRenderer;
+		delete g_deviceResources;
+
+		return 0;
+	});
+	
+	auto applicationThread = rtc::Thread::Create();
+	applicationThread->Start(&application);
+
+	application.Wait();
 
 	return 0;
 }
@@ -382,6 +390,7 @@ int WINAPI wWinMain(
 	int port = FLAG_port;
 	int heartbeat = FLAG_heartbeat;
 	ServerAuthenticationProvider::ServerAuthInfo authInfo;
+	std::string turnCredProviderUri;
 	LPWSTR* szArglist = CommandLineToArgvW(lpCmdLine, &nArgs);
 
 	// Try parsing command line arguments.
@@ -414,6 +423,15 @@ int WINAPI wWinMain(
 				heartbeat = root.get("heartbeat", FLAG_heartbeat).asInt();
 			}
 
+			if (root.isMember("turnServer"))
+			{
+				auto turnServerNode = root.get("turnServer", NULL);
+				if (turnServerNode.isMember("provider"))
+				{
+					turnCredProviderUri = turnServerNode.get("provider", "").asString();
+				}
+			}
+
 			if (root.isMember("authentication"))
 			{
 				auto authenticationNode = root.get("authentication", NULL);
@@ -441,6 +459,6 @@ int WINAPI wWinMain(
 		}
 	}
 
-	return InitWebRTC(server, port, heartbeat, authInfo);
+	return InitWebRTC(ExePath("webrtcConfig.json"));
 #endif // TEST_RUNNER
 }

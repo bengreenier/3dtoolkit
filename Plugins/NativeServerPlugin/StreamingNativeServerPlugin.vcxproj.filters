@@ -28,6 +28,15 @@
     <ClCompile Include="src\default_data_channel_observer.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="src\server_authentication_provider.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\turn_credential_provider.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\initializer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -62,6 +71,15 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="inc\plugindefs.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\server_authentication_provider.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\turn_credential_provider.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\initializer.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

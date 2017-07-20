@@ -166,7 +166,7 @@ std::string PeerConnectionClient::PrepareRequest(const std::string& method, cons
 {
 	std::string result;
 
-	for (auto i = 0; i < method.length(); ++i)
+	for (size_t i = 0; i < method.length(); ++i)
 	{
 		result += (char)toupper(method[i]);
 	}
@@ -304,7 +304,6 @@ bool PeerConnectionClient::Shutdown()
 	
 	return true;
 }
-
 
 void PeerConnectionClient::Close()
 {
@@ -715,9 +714,9 @@ const std::string& PeerConnectionClient::authorization_header() const
 	return authorization_header_;
 }
 
-void PeerConnectionClient::SetAuthorizationHeader(const std::string& value)
+void PeerConnectionClient::SetAuthorizationHeader(const std::string& authorizationHeaderValue)
 {
-	authorization_header_ = value;
+	authorization_header_ = authorizationHeaderValue;
 }
 
 void PeerConnectionClient::OnHeartbeatGetConnect(rtc::AsyncSocket* socket)

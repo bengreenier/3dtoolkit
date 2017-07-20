@@ -91,6 +91,12 @@ bool Conductor::connection_active() const
 	return peer_connection_.get() != NULL;
 }
 
+void Conductor::SetTurnCredentials(const std::string& username, const std::string& password)
+{
+	turn_username_ = username;
+	turn_password_ = password;
+}
+
 void Conductor::Close() 
 {
 	client_->SignOut();
@@ -191,7 +197,6 @@ bool Conductor::CreatePeerConnection(bool dtls)
 				turnServer.username = "";
 				turnServer.password = "";
 
-
 				if (root.isMember("turnServer"))
 				{
 					Json::Value jsonTurnServer = root.get("turnServer", NULL);
@@ -201,6 +206,13 @@ bool Conductor::CreatePeerConnection(bool dtls)
 						turnServer.username = jsonTurnServer["username"].asString();
 						turnServer.password = jsonTurnServer["password"].asString();
 					}
+				}
+
+				// if we're given explicit turn creds at runtime, steamroll any config values
+				if (!turn_username_.empty() && !turn_password_.empty())
+				{
+					turnServer.username = turn_username_;
+					turnServer.password = turn_password_;
 				}
 
 				turnServer.tls_cert_policy = webrtc::PeerConnectionInterface::kTlsCertPolicyInsecureNoCheck;

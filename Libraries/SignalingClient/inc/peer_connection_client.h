@@ -22,6 +22,7 @@
 #include "webrtc/base/sigslot.h"
 
 #include "ssl_capable_socket.h"
+#include "authentication_provider.h"
 
 typedef std::map<int, std::string> Peers;
 
@@ -89,7 +90,7 @@ public:
 
 	const std::string& authorization_header() const;
 
-	void SetAuthorizationHeader(const std::string& value);
+	void SetAuthorizationHeader(const std::string& authorizationHeaderValue);
 
 	int heartbeat_ms() const;
 

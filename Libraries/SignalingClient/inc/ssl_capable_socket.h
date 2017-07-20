@@ -38,7 +38,7 @@ public:
 	int SetOption(AsyncSocket::Option opt, int value);
 private:
 	rtc::Thread* signaling_thread_;
-	AsyncSocket* socket_;
+	std::unique_ptr<AsyncSocket> socket_;
 	std::unique_ptr<SSLAdapter> ssl_adapter_;
 
 	void MapUnderlyingEvents(AsyncSocket* provider, AsyncSocket* oldProvider = nullptr);

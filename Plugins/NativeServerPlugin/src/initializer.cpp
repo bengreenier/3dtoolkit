@@ -19,6 +19,12 @@ Initializer::Initializer(const std::string& configPath, std::function<void(Initi
 
 Initializer::~Initializer()
 {
+	// destruction must occur on a rtc::Thread
+	if (rtc::Thread::Current() == nullptr)
+	{
+		rtc::ThreadManager::Instance()->WrapCurrentThread();
+	}
+
 	rtc::CleanupSSL();
 }
 

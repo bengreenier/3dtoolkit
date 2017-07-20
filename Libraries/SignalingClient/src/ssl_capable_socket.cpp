@@ -29,15 +29,40 @@ SslCapableSocket::SslCapableSocket(const int& family, const bool& useSsl, Thread
 	ssl_adapter_(nullptr),
 	signaling_thread_(signalingThread)
 {
-	MapUnderlyingEvents(socket_);
+	MapUnderlyingEvents(socket_.get());
 	SetUseSsl(useSsl);
 }
 
 SslCapableSocket::~SslCapableSocket()
 {
-	if (ssl_adapter_.get() == nullptr)
+	if (ssl_adapter_.get() != nullptr)
 	{
-		delete socket_;
+		// ssl_adapter_ has this unfortunate behavior of owning socket_, so if one
+		// exists we are unable to cleanup socket (as it would be cleaned up 2x)
+		socket_.release();
+
+		if (ssl_adapter_->GetState() != rtc::AsyncSocket::ConnState::CS_CLOSED)
+		{
+			ssl_adapter_->Close();
+		}
+
+		ssl_adapter_->SignalCloseEvent.disconnect(this);
+		ssl_adapter_->SignalConnectEvent.disconnect(this);
+		ssl_adapter_->SignalReadEvent.disconnect(this);
+		ssl_adapter_->SignalWriteEvent.disconnect(this);
+	}
+
+	if (socket_.get() != nullptr)
+	{
+		if (socket_->GetState() != rtc::AsyncSocket::ConnState::CS_CLOSED)
+		{
+			socket_->Close();
+		}
+
+		socket_->SignalCloseEvent.disconnect(this);
+		socket_->SignalConnectEvent.disconnect(this);
+		socket_->SignalReadEvent.disconnect(this);
+		socket_->SignalWriteEvent.disconnect(this);
 	}
 }
 
@@ -45,14 +70,14 @@ void SslCapableSocket::SetUseSsl(const bool& useSsl)
 {
 	if (useSsl && ssl_adapter_.get() == nullptr)
 	{
-		ssl_adapter_.reset(SSLAdapter::Create(socket_));
+		ssl_adapter_.reset(SSLAdapter::Create(socket_.get()));
 		ssl_adapter_->SetMode(rtc::SSL_MODE_TLS);
-		MapUnderlyingEvents(ssl_adapter_.get(), socket_);
+		MapUnderlyingEvents(ssl_adapter_.get(), socket_.get());
 	}
 	else if (!useSsl && ssl_adapter_.get() != nullptr)
 	{
 		ssl_adapter_.reset(nullptr);
-		MapUnderlyingEvents(socket_);
+		MapUnderlyingEvents(socket_.get());
 	}
 }
 

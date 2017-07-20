@@ -7,6 +7,9 @@ Initializer::Initializer(const std::string& configPath, std::function<void(Initi
 	config_path_(configPath),
 	on_run_(onRun)
 {
+	// TODO(bengreenier): support other platforms
+	rtc::EnsureWinsockInit();
+
 	rtc::InitializeSSL();
 }
 
@@ -113,7 +116,6 @@ void Initializer::OnAuthenticationComplete(const AuthenticationProviderResult& c
 {
 	if (state_ != State::AUTHENTICATING)
 	{
-		state_ = State::NONE;
 		return;
 	}
 
@@ -145,7 +147,6 @@ void Initializer::OnCredentialsRetrieved(const TurnCredentials& creds)
 {
 	if (state_ != State::GETTING_TURN_CREDS)
 	{
-		state_ = State::NONE;
 		return;
 	}
 
@@ -166,7 +167,6 @@ void Initializer::OnInitialized()
 {
 	if (state_ != State::INITIALIZED)
 	{
-		state_ = State::NONE;
 		return;
 	}
 

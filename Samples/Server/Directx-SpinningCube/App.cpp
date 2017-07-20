@@ -141,9 +141,7 @@ void InputUpdate(const std::string& message)
 //--------------------------------------------------------------------------------------
 int InitWebRTC(std::string configPath)
 {
-	rtc::EnsureWinsockInit();
-	rtc::Win32Thread w32_thread;
-	rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
+	auto currentThread = rtc::Thread::Current();
 
 	InitializerWrapper application(configPath, [&](Initializer::InitializedValues values)
 	{
@@ -215,10 +213,7 @@ int InitWebRTC(std::string configPath)
 		return 0;
 	});
 	
-	auto applicationThread = rtc::Thread::Create();
-	applicationThread->Start(&application);
-
-	application.Wait();
+	application.Run();
 
 	return 0;
 }

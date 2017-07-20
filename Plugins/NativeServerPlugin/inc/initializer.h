@@ -3,10 +3,18 @@
 #include <functional>
 #include <string>
 #include <fstream>
+#include <thread>
 
 #include "webrtc/base/thread.h"
 #include "webrtc/base/sigslot.h"
 #include "third_party/jsoncpp/source/include/json/json.h"
+
+// TODO(bengreenier): support other platforms
+#ifdef WEBRTC_WIN
+#include "webrtc/base/win32socketserver.h"
+#include "webrtc/base/win32socketinit.h"
+#endif
+
 
 #include "server_authentication_provider.h"
 #include "turn_credential_provider.h"
@@ -66,24 +74,38 @@ private:
 	std::unique_ptr<TurnCredentialProvider> turn_provider_;
 };
 
-class InitializerWrapper : public rtc::Runnable
+class InitializerWrapper
 {
 public:
 	InitializerWrapper(const std::string& configPath,
 		std::function<void(Initializer::InitializedValues)> onRun) : config_path_(configPath), on_run_(onRun) {}
-
-	void Run(rtc::Thread* thread) override
+	~InitializerWrapper() { if (thread_.get() != nullptr) thread_->join(); }
+	
+	void Run()
 	{
-		instance_.reset(new Initializer(config_path_, on_run_));
-		instance_->Run();
-	}
+		rtc::Thread* procThread = nullptr;
+		rtc::Event threadRunning(false, false);
+		thread_.reset(new std::thread([&] {
+			// TODO(bengreenier): support other platforms
+			rtc::Win32Thread w32_thread;
+			rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
 
-	void Wait()
-	{
+			procThread = &w32_thread;
+
+			instance_.reset(new Initializer(config_path_, on_run_));
+			instance_->Run();
+
+			threadRunning.Set();
+
+			w32_thread.ProcessMessages(w32_thread.kForever);
+		}));
+		threadRunning.Wait(rtc::Event::kForever);
 		instance_->WaitForCompletion();
+		procThread->Stop();
 	}
 
 private:
+	std::unique_ptr<std::thread> thread_;
 	std::unique_ptr<Initializer> instance_;
 	std::string config_path_;
 	std::function<void(Initializer::InitializedValues)> on_run_;

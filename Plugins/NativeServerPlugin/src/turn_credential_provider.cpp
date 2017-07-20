@@ -95,6 +95,7 @@ void TurnCredentialProvider::SocketOpen(rtc::AsyncSocket* socket)
 	// format the request
 	std::string data = "GET " + fragment_ + " HTTP/1.1\r\n"
 		"Host: " + host_.hostname() + "\r\n"
+		"Authorization: Bearer " + auth_token_ + "\r\n"
 		"\r\n";
 
 	// send it 
@@ -218,6 +219,13 @@ void TurnCredentialProvider::OnAuthenticationComplete(const AuthenticationProvid
 	{
 		return;
 	}
+
+	if (!result.successFlag)
+	{
+		return;
+	}
+
+	auth_token_ = result.accessToken;
 
 	state_ = State::NOT_ACTIVE;
 

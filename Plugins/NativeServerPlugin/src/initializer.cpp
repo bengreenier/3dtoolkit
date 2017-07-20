@@ -5,10 +5,14 @@ Initializer::Initializer(const std::string& configPath, std::function<void(Initi
 	state_(State::NONE),
 	completion_event_(false, false),
 	config_path_(configPath),
-	on_run_(onRun)
+	on_run_(onRun),
+	server_address_(""),
+	server_port_(-1)
 {
 	// TODO(bengreenier): support other platforms
+#ifdef WEBRTC_WIN
 	rtc::EnsureWinsockInit();
+#endif
 
 	rtc::InitializeSSL();
 }
@@ -122,7 +126,7 @@ void Initializer::OnAuthenticationComplete(const AuthenticationProviderResult& c
 	if (!creds.successFlag)
 	{
 		state_ = State::NONE;
-		// TODO: indicate error somehow rather
+		OnError("authentication request failed");
 	}
 	
 	access_token_ = creds.accessToken;
@@ -139,7 +143,7 @@ void Initializer::OnAuthenticationComplete(const AuthenticationProviderResult& c
 	if (!turn_provider_->RequestCredentials())
 	{
 		state_ = State::NONE;
-		// TODO: indicate error somehow rather
+		OnError("TurnCredential request could not be issued");
 	}
 }
 
@@ -153,7 +157,7 @@ void Initializer::OnCredentialsRetrieved(const TurnCredentials& creds)
 	if (!creds.successFlag)
 	{
 		state_ = State::NONE;
-		// TODO: indicate error somehow rather
+		OnError("TurnCredential request failed");
 	}
 
 	turn_username_ = creds.username;
@@ -182,4 +186,53 @@ void Initializer::OnInitialized()
 
 	// indicate the execution is complete
 	completion_event_.Set();
+}
+
+void Initializer::OnError(const std::string& errorDesc)
+{
+	LOG(LERROR) << __FUNCTION__ << errorDesc;
+
+	// TODO(bengreenier): support other platforms
+#ifdef WEBRTC_WIN
+	MessageBoxA(0, errorDesc.c_str(), "Initializer - Error", MB_OK | MB_ICONERROR);
+#endif
+}
+
+InitializerWrapper::InitializerWrapper(const std::string& configPath,
+	std::function<void(Initializer::InitializedValues)> onRun) : config_path_(configPath), on_run_(onRun)
+{
+}
+
+InitializerWrapper::~InitializerWrapper()
+{
+	if (thread_.get() != nullptr)
+	{
+		thread_->join();
+	}
+}
+
+void InitializerWrapper::Run()
+{
+	rtc::Thread* procThread = nullptr;
+	rtc::Event threadRunning(false, false);
+	thread_.reset(new std::thread([&] {
+
+		// TODO(bengreenier): support other platforms
+#ifdef WEBRTC_WIN
+		rtc::Win32Thread w32_thread;
+		procThread = &w32_thread;
+#endif
+
+		rtc::ThreadManager::Instance()->SetCurrentThread(procThread);
+
+		instance_.reset(new Initializer(config_path_, on_run_));
+		instance_->Run();
+
+		threadRunning.Set();
+
+		procThread->ProcessMessages(w32_thread.kForever);
+	}));
+	threadRunning.Wait(rtc::Event::kForever);
+	instance_->WaitForCompletion();
+	procThread->Stop();
 }

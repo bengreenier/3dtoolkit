@@ -139,12 +139,20 @@ void InputUpdate(const std::string& message)
 //--------------------------------------------------------------------------------------
 // WebRTC
 //--------------------------------------------------------------------------------------
-int InitWebRTC(std::string configPath)
+int InitWebRTC(const std::string& server, int port, const std::string& configPath)
 {
-	auto currentThread = rtc::Thread::Current();
-
 	InitializerWrapper application(configPath, [&](Initializer::InitializedValues values)
 	{
+		if (values.serverAddress.empty())
+		{
+			values.serverAddress = server;
+		}
+
+		if (values.serverPort == -1)
+		{
+			values.serverPort = port;
+		}
+
 #ifdef NO_UI
 		DefaultMainWindow wnd(values.serverAddress.c_str(), values.serverPort, true, true, true);
 #else // NO_UI
@@ -171,12 +179,16 @@ int InitWebRTC(std::string configPath)
 
 		g_videoHelper->Initialize(g_deviceResources->GetSwapChain());
 
-		rtc::InitializeSSL();
 		PeerConnectionClient client;
 
 		if (!values.accessToken.empty())
 		{
 			client.SetAuthorizationHeader("Bearer " + values.accessToken);
+		}
+
+		if (values.heartbeatIntervalMs != -1)
+		{
+			client.SetHeartbeatMs(values.heartbeatIntervalMs);
 		}
 
 		rtc::scoped_refptr<Conductor> conductor(
@@ -383,9 +395,6 @@ int WINAPI wWinMain(
 	char server[1024];
 	strcpy(server, FLAG_server);
 	int port = FLAG_port;
-	int heartbeat = FLAG_heartbeat;
-	ServerAuthenticationProvider::ServerAuthInfo authInfo;
-	std::string turnCredProviderUri;
 	LPWSTR* szArglist = CommandLineToArgvW(lpCmdLine, &nArgs);
 
 	// Try parsing command line arguments.
@@ -394,66 +403,7 @@ int WINAPI wWinMain(
 		wcstombs(server, szArglist[0], sizeof(server));
 		port = _wtoi(szArglist[1]);
 	}
-	else // Try parsing config file.
-	{
-		std::string configFilePath = ExePath("webrtcConfig.json");
-		std::ifstream configFile(configFilePath);
-		Json::Reader reader;
-		Json::Value root = NULL;
-		if (configFile.good())
-		{
-			reader.parse(configFile, root, true);
-			if (root.isMember("server"))
-			{
-				strcpy(server, root.get("server", FLAG_server).asCString());
-			}
 
-			if (root.isMember("port"))
-			{
-				port = root.get("port", FLAG_port).asInt();
-			}
-
-			if (root.isMember("heartbeat"))
-			{
-				heartbeat = root.get("heartbeat", FLAG_heartbeat).asInt();
-			}
-
-			if (root.isMember("turnServer"))
-			{
-				auto turnServerNode = root.get("turnServer", NULL);
-				if (turnServerNode.isMember("provider"))
-				{
-					turnCredProviderUri = turnServerNode.get("provider", "").asString();
-				}
-			}
-
-			if (root.isMember("authentication"))
-			{
-				auto authenticationNode = root.get("authentication", NULL);
-
-				if (authenticationNode.isMember("authority"))
-				{
-					authInfo.authority = authenticationNode.get("authority", "").asString();
-				}
-
-				if (authenticationNode.isMember("resource"))
-				{
-					authInfo.resource = authenticationNode.get("resource", "").asString();
-				}
-
-				if (authenticationNode.isMember("clientId"))
-				{
-					authInfo.clientId = authenticationNode.get("clientId", "").asString();
-				}
-
-				if (authenticationNode.isMember("clientSecret"))
-				{
-					authInfo.clientSecret = authenticationNode.get("clientSecret", "").asString();
-				}
-			}
-		}
-	}
-
-	return InitWebRTC(ExePath("webrtcConfig.json"));
+	return InitWebRTC(server, port, ExePath("webrtcConfig.json"));
 #endif // TEST_RUNNER
 }

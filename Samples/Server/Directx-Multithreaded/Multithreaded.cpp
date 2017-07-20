@@ -24,7 +24,7 @@
 #include <fstream>
 
 #include "MultiDeviceContextDXUTMesh.h"
-#include "server_authentication_provider.h"
+#include "initializer.h"
 
 #ifdef TEST_RUNNER
 #include "test_runner.h"
@@ -534,79 +534,94 @@ void InputUpdate(const std::string& message)
 //--------------------------------------------------------------------------------------
 // WebRTC
 //--------------------------------------------------------------------------------------
-int InitWebRTC(char* server, int port, int heartbeat, const ServerAuthenticationProvider::ServerAuthInfo& authInfo)
+int InitWebRTC(const std::string& server, int port, const std::string& configPath)
 {
-	rtc::EnsureWinsockInit();
-	rtc::Win32Thread w32_thread;
-	rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
-
-#ifdef NO_UI
-	DefaultMainWindow wnd(server, port, true, true, true);
-#else // NO_UI
-	DefaultMainWindow wnd(server, port, FLAG_autoconnect, FLAG_autocall, false, 1280, 720);
-#endif // NO_UI
-
-	if (!wnd.Create())
+	InitializerWrapper application(configPath, [&](Initializer::InitializedValues values)
 	{
-		RTC_NOTREACHED();
-		return -1;
-	}
-
-	DXUTSetWindow(wnd.handle(), wnd.handle(), wnd.handle(), false);
-	DXUTCreateDevice(
-		D3D_FEATURE_LEVEL_11_0,
-		true,
-		DEFAULT_FRAME_BUFFER_WIDTH,
-		DEFAULT_FRAME_BUFFER_HEIGHT);
-
-#ifdef NO_UI
-	ShowWindow(wnd.handle(), SW_HIDE);
-#endif // NO_UI
-
-	// Creates and initializes the video helper library.
-	g_videoHelper = new VideoHelper(
-		DXUTGetD3D11Device(),
-		DXUTGetD3D11DeviceContext());
-
-	g_videoHelper->Initialize(DXUTGetDXGISwapChain());
-
-	rtc::InitializeSSL();
-
-	std::shared_ptr<ServerAuthenticationProvider> authProvider;
-	PeerConnectionClient client;
-	
-	if (!authInfo.authority.empty())
-	{
-		authProvider.reset(new ServerAuthenticationProvider(authInfo));
-		client.SetAuthenticationProvider(authProvider.get());
-	}
-
-	client.SetHeartbeatMs(heartbeat);
-
-	rtc::scoped_refptr<Conductor> conductor(
-		new rtc::RefCountedObject<Conductor>(
-			&client, &wnd, &FrameUpdate, &InputUpdate, g_videoHelper));
-
-	// Main loop.
-	MSG msg;
-	BOOL gm;
-	while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1)
-	{
-		if (!wnd.PreTranslateMessage(&msg))
+		if (values.serverAddress.empty())
 		{
-			try
+			values.serverAddress = server;
+		}
+
+		if (values.serverPort == -1)
+		{
+			values.serverPort = port;
+		}
+
+#ifdef NO_UI
+		DefaultMainWindow wnd(values.serverAddress.c_str(), values.serverPort, true, true, true);
+#else // NO_UI
+		DefaultMainWindow wnd(values.serverAddress.c_str(), values.serverPort, FLAG_autoconnect, FLAG_autocall, false, 1280, 720);
+#endif // NO_UI
+
+		if (!wnd.Create())
+		{
+			RTC_NOTREACHED();
+			return -1;
+		}
+
+		DXUTSetWindow(wnd.handle(), wnd.handle(), wnd.handle(), false);
+		DXUTCreateDevice(
+			D3D_FEATURE_LEVEL_11_0,
+			true,
+			DEFAULT_FRAME_BUFFER_WIDTH,
+			DEFAULT_FRAME_BUFFER_HEIGHT);
+
+#ifdef NO_UI
+		ShowWindow(wnd.handle(), SW_HIDE);
+#endif // NO_UI
+
+		// Creates and initializes the video helper library.
+		g_videoHelper = new VideoHelper(
+			DXUTGetD3D11Device(),
+			DXUTGetD3D11DeviceContext());
+
+		g_videoHelper->Initialize(DXUTGetDXGISwapChain());
+
+		PeerConnectionClient client;
+		
+		if (!values.accessToken.empty())
+		{
+			client.SetAuthorizationHeader("Bearer " + values.accessToken);
+		}
+
+		if (values.heartbeatIntervalMs != -1)
+		{
+			client.SetHeartbeatMs(values.heartbeatIntervalMs);
+		}
+
+		rtc::scoped_refptr<Conductor> conductor(
+			new rtc::RefCountedObject<Conductor>(
+				&client, &wnd, &FrameUpdate, &InputUpdate, g_videoHelper));
+
+		if (!values.turnUsername.empty() && !values.turnPassword.empty())
+		{
+			conductor->SetTurnCredentials(values.turnUsername, values.turnPassword);
+		}
+
+		// Main loop.
+		MSG msg;
+		BOOL gm;
+		while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1)
+		{
+			if (!wnd.PreTranslateMessage(&msg))
 			{
-				::TranslateMessage(&msg);
-				::DispatchMessage(&msg);
-			}
-			catch (int errorCode) 
-			{
-				printf("Error: %d", errorCode);
+				try
+				{
+					::TranslateMessage(&msg);
+					::DispatchMessage(&msg);
+				}
+				catch (int errorCode)
+				{
+					printf("Error: %d", errorCode);
+				}
 			}
 		}
-	}
 
-	rtc::CleanupSSL();
+		return 0;
+	});
+
+	application.Run();
 
 	return 0;
 }
@@ -659,8 +674,6 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	char server[1024];
 	strcpy(server, FLAG_server);
 	int port = FLAG_port;
-	int heartbeat = FLAG_heartbeat;
-	ServerAuthenticationProvider::ServerAuthInfo authInfo;
 	LPWSTR* szArglist = CommandLineToArgvW(lpCmdLine, &nArgs);
 
 	// Try parsing command line arguments.
@@ -669,58 +682,8 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		wcstombs(server, szArglist[0], sizeof(server));
 		port = _wtoi(szArglist[1]);
 	}
-	else // Try parsing config file.
-	{
-		std::string configFilePath = ExePath("webrtcConfig.json");
-		std::ifstream webrtcConfigFile(configFilePath);
-		Json::Reader reader;
-		Json::Value root = NULL;
-		if (webrtcConfigFile.good())
-		{
-			reader.parse(webrtcConfigFile, root, true);
-			if (root.isMember("server"))
-			{
-				strcpy(server, root.get("server", FLAG_server).asCString());
-			}
 
-			if (root.isMember("port"))
-			{
-				port = root.get("port", FLAG_port).asInt();
-			}
-
-			if (root.isMember("heartbeat"))
-			{
-				heartbeat = root.get("heartbeat", FLAG_heartbeat).asInt();
-			}
-
-			if (root.isMember("authentication"))
-			{
-				auto authenticationNode = root.get("authentication", NULL);
-
-				if (authenticationNode.isMember("authority"))
-				{
-					authInfo.authority = authenticationNode.get("authority", "").asString();
-				}
-
-				if (authenticationNode.isMember("resource"))
-				{
-					authInfo.resource = authenticationNode.get("resource", "").asString();
-				}
-
-				if (authenticationNode.isMember("clientId"))
-				{
-					authInfo.clientId = authenticationNode.get("clientId", "").asString();
-				}
-
-				if (authenticationNode.isMember("clientSecret"))
-				{
-					authInfo.clientSecret = authenticationNode.get("clientSecret", "").asString();
-				}
-			}
-		}
-	}
-
-	return InitWebRTC(server, port, heartbeat, authInfo);
+	return InitWebRTC(server, port, ExePath("webrtcConfig.json"));
 #endif // TEST_RUNNER
 }
 

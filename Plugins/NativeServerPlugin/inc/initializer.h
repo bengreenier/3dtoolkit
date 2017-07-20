@@ -15,12 +15,18 @@
 #include "webrtc/base/win32socketinit.h"
 #endif
 
-
 #include "server_authentication_provider.h"
 #include "turn_credential_provider.h"
 #include "main_window.h"
 #include "conductor.h"
 
+/// <summary>
+/// Used to initialize a server with authentication, dynamic turn creds, etc
+/// </summary>
+/// <remarks>
+/// Unless you're doing your own thread management you likely want to consume
+/// <see cref="InitializerWrapper"/> instead
+/// </remarks>
 class Initializer : public sigslot::has_slots<>
 {
 public:
@@ -47,7 +53,9 @@ public:
 
 private:
 	void OnInitialized();
+	void OnError(const std::string& errorDesc);
 
+	// values ordered intentionally to indicate the order of the full FSM flow
 	enum State
 	{
 		NONE = 0,
@@ -74,35 +82,18 @@ private:
 	std::unique_ptr<TurnCredentialProvider> turn_provider_;
 };
 
+/// <summary>
+/// A lightweight wrapper for <see cref="Initializer"/> that handles
+/// threading and blocks on initialization until it is complete
+/// </summary>
 class InitializerWrapper
 {
 public:
 	InitializerWrapper(const std::string& configPath,
-		std::function<void(Initializer::InitializedValues)> onRun) : config_path_(configPath), on_run_(onRun) {}
-	~InitializerWrapper() { if (thread_.get() != nullptr) thread_->join(); }
+		std::function<void(Initializer::InitializedValues)> onRun);
+		~InitializerWrapper();
 	
-	void Run()
-	{
-		rtc::Thread* procThread = nullptr;
-		rtc::Event threadRunning(false, false);
-		thread_.reset(new std::thread([&] {
-			// TODO(bengreenier): support other platforms
-			rtc::Win32Thread w32_thread;
-			rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
-
-			procThread = &w32_thread;
-
-			instance_.reset(new Initializer(config_path_, on_run_));
-			instance_->Run();
-
-			threadRunning.Set();
-
-			w32_thread.ProcessMessages(w32_thread.kForever);
-		}));
-		threadRunning.Wait(rtc::Event::kForever);
-		instance_->WaitForCompletion();
-		procThread->Stop();
-	}
+	void Run();
 
 private:
 	std::unique_ptr<std::thread> thread_;

@@ -14,15 +14,16 @@
 #include "IUnityGraphics.h"
 #include "IUnityInterface.h"
 
+#include "webrtc/base/checks.h"
+#include "webrtc/base/ssladapter.h"
+#include "webrtc/modules/video_coding/codecs/h264/h264_encoder_impl.h"
+
 #include "video_helper.h"
 #include "conductor.h"
 #include "default_main_window.h"
 #include "flagdefs.h"
 #include "peer_connection_client.h"
-#include "webrtc/base/checks.h"
-#include "webrtc/base/ssladapter.h"
-#include "webrtc/base/win32socketinit.h"
-#include "webrtc/base/win32socketserver.h"
+#include "initializer.h"
 
 #pragma warning( disable : 4100 )
 #pragma comment(lib, "ws2_32.lib") 
@@ -54,6 +55,7 @@ using namespace Microsoft::WRL;
 using namespace Toolkit3DLibrary;
 
 void(__stdcall*s_onInputUpdate)(const char *msg);
+void(__stdcall*s_onLog)(const char* msg);
 
 DEFINE_GUID(IID_Texture2D, 0x6f15aaf2, 0xd208, 0x4e89, 0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c);
 
@@ -81,6 +83,15 @@ int s_heartbeat = 5000;
 bool s_closing = false;
 
 
+void LogUnity(const std::string& message)
+{
+	if (s_onLog)
+	{
+		LOG(INFO) << message;
+		s_onLog(message.c_str());
+	}
+}
+
 void FrameUpdate()
 {
 }
@@ -99,46 +110,71 @@ void InputUpdate(const std::string& message)
 
 void InitWebRTC()
 {
-	rtc::EnsureWinsockInit();
-	rtc::Win32Thread w32_thread;
-	rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
-	rtc::InitializeSSL();
-	
-	PeerConnectionClient client;
-
-	client.SetHeartbeatMs(s_heartbeat);
-
-	wnd = new DefaultMainWindow(FLAG_server, FLAG_port, FLAG_autoconnect, FLAG_autocall,
-		true, 1280, 720);
-	
-	wnd->Create();
-
-	s_conductor = new rtc::RefCountedObject<Conductor>(&client, wnd, &FrameUpdate, &InputUpdate, g_videoHelper);
-	
-	if (s_conductor != nullptr)
+	InitializerWrapper application(webrtc::ExePath("webrtcConfig.json"), [&](Initializer::InitializedValues values)
 	{
-		MainWindowCallback *callback = s_conductor;
-
-		callback->StartLogin(s_server, s_port);
-	}
-
-	// Main loop.
-	MSG msg;
-	BOOL gm;
-	while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1 && !s_closing)
-	{
-		if (!wnd->PreTranslateMessage(&msg))
+		if (values.serverAddress.empty())
 		{
-			try
+			values.serverAddress = s_server;
+		}
+
+		if (values.serverPort == -1)
+		{
+			values.serverPort = s_port;
+		}
+
+		LogUnity("init got values " + values.serverAddress + ":" + std::to_string(values.serverPort));
+
+		PeerConnectionClient client;
+
+		if (!values.accessToken.empty())
+		{
+			client.SetAuthorizationHeader("Bearer " + values.accessToken);
+		}
+
+		if (values.heartbeatIntervalMs != -1)
+		{
+			client.SetHeartbeatMs(values.heartbeatIntervalMs);
+		}
+
+		wnd = new DefaultMainWindow(values.serverAddress.c_str(), values.serverPort, FLAG_autoconnect, FLAG_autocall,
+			true, 1280, 720);
+
+		wnd->Create();
+
+		s_conductor = new rtc::RefCountedObject<Conductor>(&client, wnd, &FrameUpdate, &InputUpdate, g_videoHelper);
+
+		if (!values.turnUsername.empty() && !values.turnPassword.empty())
+		{
+			s_conductor->SetTurnCredentials(values.turnUsername, values.turnPassword);
+		}
+
+		if (s_conductor != nullptr)
+		{
+			MainWindowCallback *callback = s_conductor;
+
+			callback->StartLogin(s_server, s_port);
+		}
+
+		// Main loop.
+		MSG msg;
+		BOOL gm;
+		while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1 && !s_closing)
+		{
+			if (!wnd->PreTranslateMessage(&msg))
 			{
-				::TranslateMessage(&msg);
-				::DispatchMessage(&msg);
-			}
-			catch (const std::exception& e) { // reference to the base of a polymorphic object
-				std::cout << e.what(); // information from length_error printed
+				try
+				{
+					::TranslateMessage(&msg);
+					::DispatchMessage(&msg);
+				}
+				catch (const std::exception& e) { // reference to the base of a polymorphic object
+					std::cout << e.what(); // information from length_error printed
+				}
 			}
 		}
-	}
+	});
+
+	application.Run();
 }
 
 
@@ -167,6 +203,8 @@ static void UNITY_INTERFACE_API OnEncode(int eventID)
 				s_frameBuffer->Release();
 				
 				messageThread = new std::thread(InitWebRTC);
+
+				LogUnity("created thread");
 			}
 		}
 
@@ -275,3 +313,8 @@ extern "C" __declspec(dllexport) void SetInputDataCallback(void(__stdcall*onInpu
 	s_onInputUpdate = onInputUpdate;
 }
 
+
+extern "C" __declspec(dllexport) void SetLoggingCallback(void(_stdcall*onLog)(const char* msg))
+{
+	s_onLog = onLog;
+}

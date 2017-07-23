@@ -32,6 +32,13 @@ public class WebRTCServer : MonoBehaviour
 	[DllImport ("__Internal")]
 #else
     [DllImport("StreamingUnityServerPlugin")]
+#endif    
+    public static extern void SetLoggingCallback(FPtr cb);
+
+#if (UNITY_IPHONE || UNITY_WEBGL) && !UNITY_EDITOR
+	[DllImport ("__Internal")]
+#else
+    [DllImport("StreamingUnityServerPlugin")]
 #endif
     private static extern void Close();
     
@@ -77,11 +84,10 @@ public class WebRTCServer : MonoBehaviour
         Camera.main.AddCommandBuffer(CameraEvent.AfterEverything, cmb);
         
 		// note: -1 for a heartbeat tick, fully disables the heartbeat request
-        Login("localhost", 8888, -1);
+        Login("localhost", 3000, 5000);
         
-        FPtr cb = new FPtr(OnInputData);
-
-        SetInputDataCallback(cb);
+        SetInputDataCallback(new FPtr(OnInputData));
+        SetLoggingCallback(new FPtr(OnLog));
     }
 
     void Stop()
@@ -116,6 +122,11 @@ public class WebRTCServer : MonoBehaviour
             transform.position = Location;
             transform.LookAt(LookAt, Up);
         }
+    }
+
+    void OnLog(string msg)
+    {
+        Debug.Log(msg);
     }
 
     void OnInputData(string val)

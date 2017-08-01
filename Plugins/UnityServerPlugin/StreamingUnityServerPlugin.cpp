@@ -88,7 +88,7 @@ void LogUnity(const std::string& message)
 	if (s_onLog)
 	{
 		LOG(INFO) << message;
-		s_onLog(message.c_str());
+		(*s_onLog)(message.c_str());
 	}
 }
 
@@ -222,6 +222,8 @@ extern "C" void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventTyp
             s_Device = s_UnityInterfaces->Get<IUnityGraphicsD3D11>()->GetDevice();
             s_Device->GetImmediateContext(&s_Context);
 			
+			LogUnity("got context");
+
 			break;
         }
 
@@ -247,6 +249,8 @@ extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnit
 
     std::cout << "Console open..." << std::endl;
 #endif
+
+	LogUnity("plugin loaded");
 	
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();

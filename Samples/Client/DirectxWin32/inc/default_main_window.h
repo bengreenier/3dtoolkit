@@ -83,6 +83,8 @@ public:
 		return wnd_;
 	}
 
+	void SetAuthCode(const std::wstring& str);
+
 	class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame>
 	{
 	public:
@@ -155,6 +157,7 @@ protected:
 	{
 		EDIT_ID = 1,
 		BUTTON_ID,
+		AUTH_ID,
 		LABEL1_ID,
 		LABEL2_ID,
 		LISTBOX_ID,
@@ -182,7 +185,6 @@ protected:
 	void LayoutPeerListUI(bool show);
 
 	void HandleTabbing();
-
 private:
 	std::unique_ptr<VideoRenderer> local_renderer_;
 	std::unique_ptr<VideoRenderer> remote_renderer_;
@@ -195,6 +197,8 @@ private:
 	HWND label2_;
 	HWND button_;
 	HWND listbox_;
+	HWND auth_code_;
+	HWND auth_code_label_;
 	ID2D1Factory* direct2d_factory_;
 	ID2D1HwndRenderTarget* render_target_;
 	bool destroyed_;
@@ -203,6 +207,7 @@ private:
 	static ATOM wnd_class_;
 	std::string server_;
 	std::string port_;
+	std::wstring auth_code_val_;
 	bool auto_connect_;
 	bool auto_call_;
 

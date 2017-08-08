@@ -103,7 +103,8 @@ DefaultMainWindow::DefaultMainWindow(
 		auto_connect_(auto_connect),
 		auto_call_(auto_call),
 		width_(width),
-		height_(height)
+		height_(height),
+		auth_code_val_(L"WWWWWWWWW")
 {
 	char buffer[10] = {0};
 	sprintfn(buffer, sizeof(buffer), "%i", port);
@@ -648,6 +649,9 @@ void DefaultMainWindow::CreateChildWindow(HWND* wnd, DefaultMainWindow::ChildWin
 void DefaultMainWindow::CreateChildWindows()
 {
 	// Create the child windows in tab order.
+	CreateChildWindow(&auth_code_label_, AUTH_ID, L"Static", ES_LEFT | ES_READONLY, 0);
+	CreateChildWindow(&auth_code_, AUTH_ID, L"Static", ES_CENTER | ES_READONLY, 0);
+
 	CreateChildWindow(&label1_, LABEL1_ID, L"Static", ES_CENTER | ES_READONLY, 0);
 	CreateChildWindow(&edit1_, EDIT_ID, L"Edit", ES_LEFT | ES_NOHIDESEL | WS_TABSTOP,
 		WS_EX_CLIENTEDGE);
@@ -675,6 +679,8 @@ void DefaultMainWindow::LayoutConnectUI(bool show)
 		size_t height;
 	} windows[] =
 	{
+		{ auth_code_label_, L"Auth Code" },
+		{ auth_code_, auth_code_val_.c_str()},
 		{ label1_, L"Server" },
 		{ edit1_, L"XXXyyyYYYgggXXXyyyYYYgggXXXyyyYYYggg" },
 		{ label2_, L":" },
@@ -768,6 +774,11 @@ void DefaultMainWindow::HandleTabbing()
 	while (true);
 
 	::SetFocus(next);
+}
+
+void DefaultMainWindow::SetAuthCode(const std::wstring& str)
+{
+	auth_code_val_ = str;
 }
 
 //

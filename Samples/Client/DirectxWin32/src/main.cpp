@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <shellapi.h>
 #include <fstream>
+#include <functional>
 
 #include "webrtc.h"
 #include "third_party/jsoncpp/source/include/json/json.h"
+
+#include "oauth24d_provider.h"
 
 //--------------------------------------------------------------------------------------
 // Required app libs
@@ -36,7 +39,7 @@ std::string GetAbsolutePath(std::string fileName)
 //--------------------------------------------------------------------------------------
 // WebRTC
 //--------------------------------------------------------------------------------------
-int InitWebRTC(char* server, int port, int heartbeat)
+int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* authPollUri)
 {
 	rtc::EnsureWinsockInit();
 	rtc::Win32Thread w32_thread;
@@ -51,9 +54,45 @@ int InitWebRTC(char* server, int port, int heartbeat)
 	}
 
 	rtc::InitializeSSL();
+	OAuth24DProvider oauth(authCodeUri, authPollUri);
+
+	OAuth24DProvider::CodeCompleteCallback codeComplete([&](const OAuth24DProvider::CodeData& data) {
+		std::wstring wcode(data.user_code.begin(), data.user_code.end());
+		
+		// set the code
+		wnd.SetAuthCode(wcode);
+
+		// redraw the ui that shows the code only if we're currently in that ui
+		if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
+		{
+			wnd.SwitchToConnectUI();
+		}
+	});
+	oauth.SignalCodeComplete.connect(&codeComplete, &OAuth24DProvider::CodeCompleteCallback::Handle);
+	
 	PeerConnectionClient client;
 
 	client.SetHeartbeatMs(heartbeat);
+
+	AuthenticationProvider::AuthenticationCompleteCallback authComplete([&](const AuthenticationProviderResult& data) {
+		if (data.successFlag)
+		{
+			client.SetAuthorizationHeader("Bearer " + data.accessToken);
+
+			// set the code value to (OK) communicating auth is complete
+			wnd.SetAuthCode(L"OK");
+
+			// redraw the ui that shows the code only if we're currently in that ui
+			if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
+			{
+				wnd.SwitchToConnectUI();
+			}
+		}
+	});
+	oauth.SignalAuthenticationComplete.connect(&authComplete, &AuthenticationProvider::AuthenticationCompleteCallback::Handle);
+
+	// TODO(bengreenier): handle failure here
+	oauth.Authenticate();
 
 	rtc::scoped_refptr<Conductor> conductor(
 		new rtc::RefCountedObject<Conductor>(&client, &wnd));
@@ -91,6 +130,10 @@ int WINAPI wWinMain(
 	int nArgs;
 	char server[1024];
 	strcpy(server, FLAG_server);
+	char authCodeUri[1024];
+	strcpy(authCodeUri, FLAG_authCodeUri);
+	char authPollUri[1024];
+	strcpy(authPollUri, FLAG_authPollUri);
 	int port = FLAG_port;
 	int heartbeat = FLAG_heartbeat;
 	LPWSTR* szArglist = CommandLineToArgvW(lpCmdLine, &nArgs);
@@ -124,8 +167,25 @@ int WINAPI wWinMain(
 			{
 				heartbeat = root.get("heartbeat", FLAG_heartbeat).asInt();
 			}
+
+			if (root.isMember("authentication"))
+			{
+				auto authenticationWrapper = root.get("authentication", NULL);
+				if (authenticationWrapper != NULL)
+				{
+					if (authenticationWrapper.isMember("codeUri"))
+					{
+						strcpy(authCodeUri, authenticationWrapper.get("codeUri", FLAG_authCodeUri).asCString());
+					}
+
+					if (authenticationWrapper.isMember("pollUri"))
+					{
+						strcpy(authPollUri, authenticationWrapper.get("pollUri", FLAG_authPollUri).asCString());
+					}
+				}
+			}
 		}
 	}
 
-	return InitWebRTC(server, port, heartbeat);
+	return InitWebRTC(server, port, heartbeat, authCodeUri, authPollUri);
 }

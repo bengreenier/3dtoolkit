@@ -93,6 +93,10 @@ DefaultMainWindow::DefaultMainWindow(
 		label2_(NULL),
 		button_(NULL),
 		listbox_(NULL),
+		auth_code_(NULL),
+		auth_code_label_(NULL),
+		auth_uri_(NULL),
+		auth_uri_label_(NULL),
 		direct2d_factory_(NULL),
 		render_target_(NULL),
 		destroyed_(false),
@@ -104,7 +108,8 @@ DefaultMainWindow::DefaultMainWindow(
 		auto_call_(auto_call),
 		width_(width),
 		height_(height),
-		auth_code_val_(L"WWWWWWWWW")
+		auth_code_val_(L"Not Configured"),
+		auth_uri_val_(L"Not Configured")
 {
 	char buffer[10] = {0};
 	sprintfn(buffer, sizeof(buffer), "%i", port);
@@ -649,6 +654,9 @@ void DefaultMainWindow::CreateChildWindow(HWND* wnd, DefaultMainWindow::ChildWin
 void DefaultMainWindow::CreateChildWindows()
 {
 	// Create the child windows in tab order.
+	CreateChildWindow(&auth_uri_label_, AUTH_ID, L"Static", ES_LEFT | ES_READONLY, 0);
+	CreateChildWindow(&auth_uri_, AUTH_ID, L"Static", ES_CENTER | ES_READONLY, 0);
+
 	CreateChildWindow(&auth_code_label_, AUTH_ID, L"Static", ES_LEFT | ES_READONLY, 0);
 	CreateChildWindow(&auth_code_, AUTH_ID, L"Static", ES_CENTER | ES_READONLY, 0);
 
@@ -679,6 +687,8 @@ void DefaultMainWindow::LayoutConnectUI(bool show)
 		size_t height;
 	} windows[] =
 	{
+		{ auth_uri_label_, L"Auth Uri"},
+		{ auth_uri_, auth_uri_val_.c_str()},
 		{ auth_code_label_, L"Auth Code" },
 		{ auth_code_, auth_code_val_.c_str()},
 		{ label1_, L"Server" },
@@ -690,38 +700,83 @@ void DefaultMainWindow::LayoutConnectUI(bool show)
 
 	if (show)
 	{
-		const size_t kSeparator = 5;
-		size_t total_width = (ARRAYSIZE(windows) - 1) * kSeparator;
-
-		for (size_t i = 0; i < ARRAYSIZE(windows); ++i)
+		// block scope for auth layout
 		{
-			CalculateWindowSizeForText(windows[i].wnd, windows[i].text, 
-				&windows[i].width, &windows[i].height);
+			const size_t kSeparator = 2;
+			size_t total_width = 3 * kSeparator;
 
-			total_width += windows[i].width;
-		}
-
-		RECT rc;
-		::GetClientRect(wnd_, &rc);
-		size_t x = (rc.right / 2) - (total_width / 2);
-		size_t y = rc.bottom / 2;
-		for (size_t i = 0; i < ARRAYSIZE(windows); ++i)
-		{
-			size_t top = y - (windows[i].height / 2);
-			::MoveWindow(windows[i].wnd, static_cast<int>(x), static_cast<int>(top), 
-				static_cast<int>(windows[i].width), static_cast<int>(windows[i].height), TRUE);
-
-			x += kSeparator + windows[i].width;
-			if (windows[i].text[0] != 'X')
+			// just auth stuff
+			for (size_t i = 0; i < 4; ++i)
 			{
-				::SetWindowText(windows[i].wnd, windows[i].text);
+				CalculateWindowSizeForText(windows[i].wnd, windows[i].text,
+					&windows[i].width, &windows[i].height);
+
+				total_width += windows[i].width;
 			}
 
-			::ShowWindow(windows[i].wnd, SW_SHOWNA);
+			RECT rc;
+			::GetClientRect(wnd_, &rc);
+			size_t x = (rc.right / 2) - (total_width / 2);
+			size_t y = (rc.bottom / 2) - ((rc.bottom / 2) / 3);
+
+			// just auth stuff
+			for (size_t i = 0; i < 4; ++i)
+			{
+				size_t top = y - (windows[i].height / 2);
+				::MoveWindow(windows[i].wnd, static_cast<int>(x), static_cast<int>(top),
+					static_cast<int>(windows[i].width), static_cast<int>(windows[i].height), TRUE);
+
+				x += kSeparator + windows[i].width;
+				if (windows[i].text[0] != 'X')
+				{
+					::SetWindowText(windows[i].wnd, windows[i].text);
+				}
+
+				::ShowWindow(windows[i].wnd, SW_SHOWNA);
+			}
 		}
+		// end block scope for auth layout
+
+		// block scope for connection layout
+		{
+			const size_t kSeparator = 5;
+			size_t total_width = (ARRAYSIZE(windows) - 1 - 4 /* 4 for auth */) * kSeparator;
+
+			// start at 4, skipping auth stuff
+			for (size_t i = 4; i < ARRAYSIZE(windows); ++i)
+			{
+				CalculateWindowSizeForText(windows[i].wnd, windows[i].text,
+					&windows[i].width, &windows[i].height);
+
+				total_width += windows[i].width;
+			}
+
+			RECT rc;
+			::GetClientRect(wnd_, &rc);
+			size_t x = (rc.right / 2) - (total_width / 2);
+			size_t y = (rc.bottom / 2) + ((rc.bottom / 2) / 3);
+
+			// start at 4, skipping auth stuff
+			for (size_t i = 4; i < ARRAYSIZE(windows); ++i)
+			{
+				size_t top = y - (windows[i].height / 2);
+				::MoveWindow(windows[i].wnd, static_cast<int>(x), static_cast<int>(top),
+					static_cast<int>(windows[i].width), static_cast<int>(windows[i].height), TRUE);
+
+				x += kSeparator + windows[i].width;
+				if (windows[i].text[0] != 'X')
+				{
+					::SetWindowText(windows[i].wnd, windows[i].text);
+				}
+
+				::ShowWindow(windows[i].wnd, SW_SHOWNA);
+			}
+		}
+		// end block scope for connection layout
 	} 
 	else
 	{
+		// hide all windows
 		for (size_t i = 0; i < ARRAYSIZE(windows); ++i)
 		{
 			::ShowWindow(windows[i].wnd, SW_HIDE);
@@ -779,6 +834,11 @@ void DefaultMainWindow::HandleTabbing()
 void DefaultMainWindow::SetAuthCode(const std::wstring& str)
 {
 	auth_code_val_ = str;
+}
+
+void DefaultMainWindow::SetAuthUri(const std::wstring& str)
+{
+	auth_uri_val_ = str;
 }
 
 //

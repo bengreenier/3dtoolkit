@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <fstream>
 #include <functional>
+#include <algorithm>
 
 #include "webrtc.h"
 #include "third_party/jsoncpp/source/include/json/json.h"
@@ -58,9 +59,12 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 
 	OAuth24DProvider::CodeCompleteCallback codeComplete([&](const OAuth24DProvider::CodeData& data) {
 		std::wstring wcode(data.user_code.begin(), data.user_code.end());
-		
-		// set the code
+		std::wstring wuri(data.verification_url.begin(), data.verification_url.end());
+		std::replace(wuri.begin(), wuri.end(), L'\\', L'/');
+
+		// set the ui values
 		wnd.SetAuthCode(wcode);
+		wnd.SetAuthUri(wuri);
 
 		// redraw the ui that shows the code only if we're currently in that ui
 		if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
@@ -79,8 +83,9 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 		{
 			client.SetAuthorizationHeader("Bearer " + data.accessToken);
 
-			// set the code value to (OK) communicating auth is complete
+			// let the user know auth is complete
 			wnd.SetAuthCode(L"OK");
+			wnd.SetAuthUri(L"Authenticated");
 
 			// redraw the ui that shows the code only if we're currently in that ui
 			if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
@@ -91,8 +96,19 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 	});
 	oauth.SignalAuthenticationComplete.connect(&authComplete, &AuthenticationProvider::AuthenticationCompleteCallback::Handle);
 
-	// TODO(bengreenier): handle failure here
-	oauth.Authenticate();
+	// if we have real auth values, indicate that we'll try and connect
+	if (authCodeUri != FLAG_authCodeUri && authPollUri != FLAG_authPollUri)
+	{
+		wnd.SetAuthCode(L"Connecting");
+		wnd.SetAuthUri(L"Connecting");
+
+		// if attempting to authenticate immediately fails, tell the user
+		if (!oauth.Authenticate())
+		{
+			wnd.SetAuthCode(L"FAIL");
+			wnd.SetAuthUri(L"Unable to authenticate");
+		}
+	}
 
 	rtc::scoped_refptr<Conductor> conductor(
 		new rtc::RefCountedObject<Conductor>(&client, &wnd));

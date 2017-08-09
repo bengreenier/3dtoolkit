@@ -37,6 +37,8 @@ public:
 
 	OAuth24DProvider(const std::string& codeUri, const std::string& pollUri);
 
+	~OAuth24DProvider();
+
 	const State& state() const;
 
 	// emitted when we have the code response and are awaiting user interaction

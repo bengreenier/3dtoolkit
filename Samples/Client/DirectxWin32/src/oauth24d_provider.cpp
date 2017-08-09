@@ -22,6 +22,19 @@ OAuth24DProvider::OAuth24DProvider(const std::string& codeUri, const std::string
 	signaling_thread_ = socketThread;
 }
 
+OAuth24DProvider::~OAuth24DProvider()
+{
+	if (resolver_.get() != nullptr)
+	{
+		// release the resolver pointer and destroy the resolver
+		auto released = resolver_.release();
+		released->Destroy(true);
+
+		// reset the resolver pointer to nullptr
+		resolver_.reset(nullptr);
+	}
+}
+
 const OAuth24DProvider::State& OAuth24DProvider::state() const
 {
 	return state_;

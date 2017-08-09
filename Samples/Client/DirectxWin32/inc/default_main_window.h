@@ -85,6 +85,8 @@ public:
 
 	void SetAuthCode(const std::wstring& str);
 
+	void SetAuthUri(const std::wstring& str);
+
 	class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame>
 	{
 	public:
@@ -185,6 +187,7 @@ protected:
 	void LayoutPeerListUI(bool show);
 
 	void HandleTabbing();
+
 private:
 	std::unique_ptr<VideoRenderer> local_renderer_;
 	std::unique_ptr<VideoRenderer> remote_renderer_;
@@ -197,6 +200,8 @@ private:
 	HWND label2_;
 	HWND button_;
 	HWND listbox_;
+	HWND auth_uri_;
+	HWND auth_uri_label_;
 	HWND auth_code_;
 	HWND auth_code_label_;
 	ID2D1Factory* direct2d_factory_;
@@ -208,6 +213,7 @@ private:
 	std::string server_;
 	std::string port_;
 	std::wstring auth_code_val_;
+	std::wstring auth_uri_val_;
 	bool auto_connect_;
 	bool auto_call_;
 

@@ -567,8 +567,6 @@ void DefaultMainWindow::CreateChildWindow(HWND* wnd, DefaultMainWindow::ChildWin
 void DefaultMainWindow::CreateChildWindows()
 {
 	// Create the child windows in tab order.
-	CreateChildWindow(&auth_code_, LABEL1_ID, L"AuthCode", ES_LEFT | ES_READONLY, 0);
-
 	CreateChildWindow(&label1_, LABEL1_ID, L"Static", ES_CENTER | ES_READONLY, 0);
 	CreateChildWindow(&edit1_, EDIT_ID, L"Edit", ES_LEFT | ES_NOHIDESEL | WS_TABSTOP,
 		WS_EX_CLIENTEDGE);

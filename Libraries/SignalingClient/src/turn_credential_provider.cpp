@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "turn_credential_provider.h"
 
 TurnCredentialProvider::TurnCredentialProvider(const std::string& uri)

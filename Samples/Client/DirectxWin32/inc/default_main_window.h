@@ -87,6 +87,8 @@ public:
 
 	void SetAuthUri(const std::wstring& str);
 
+	void SetConnectButtonState(bool enabled);
+
 	class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame>
 	{
 	public:
@@ -216,6 +218,7 @@ private:
 	std::wstring auth_uri_val_;
 	bool auto_connect_;
 	bool auto_call_;
+	bool connect_button_state_;
 
 	Win32DataChannelHandler* data_channel_handler_;
 

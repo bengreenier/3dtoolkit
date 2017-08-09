@@ -109,7 +109,8 @@ DefaultMainWindow::DefaultMainWindow(
 		width_(width),
 		height_(height),
 		auth_code_val_(L"Not Configured"),
-		auth_uri_val_(L"Not Configured")
+		auth_uri_val_(L"Not Configured"),
+		connect_button_state_(true)
 {
 	char buffer[10] = {0};
 	sprintfn(buffer, sizeof(buffer), "%i", port);
@@ -769,7 +770,18 @@ void DefaultMainWindow::LayoutConnectUI(bool show)
 					::SetWindowText(windows[i].wnd, windows[i].text);
 				}
 
-				::ShowWindow(windows[i].wnd, SW_SHOWNA);
+				// if the window is either a) not the connect button
+				// or b) the connect button, and connect_button_state_
+				// is true
+				if (windows[i].wnd != button_ ||
+					(button_ != NULL && windows[i].wnd == button_ && connect_button_state_))
+				{
+					::ShowWindow(windows[i].wnd, SW_SHOWNA);
+				}
+				else if (button_ != NULL && windows[i].wnd == button_ && !connect_button_state_)
+				{
+					::ShowWindow(windows[i].wnd, SW_HIDE);
+				}
 			}
 		}
 		// end block scope for connection layout
@@ -839,6 +851,11 @@ void DefaultMainWindow::SetAuthCode(const std::wstring& str)
 void DefaultMainWindow::SetAuthUri(const std::wstring& str)
 {
 	auth_uri_val_ = str;
+}
+
+void DefaultMainWindow::SetConnectButtonState(bool enabled)
+{
+	connect_button_state_ = enabled;
 }
 
 //

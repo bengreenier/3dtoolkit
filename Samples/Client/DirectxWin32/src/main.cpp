@@ -10,6 +10,7 @@
 #include "third_party/jsoncpp/source/include/json/json.h"
 
 #include "oauth24d_provider.h"
+#include "turn_credential_provider.h"
 
 //--------------------------------------------------------------------------------------
 // Required app libs
@@ -40,7 +41,7 @@ std::string GetAbsolutePath(std::string fileName)
 //--------------------------------------------------------------------------------------
 // WebRTC
 //--------------------------------------------------------------------------------------
-int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* authPollUri)
+int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* authPollUri, char* turnUri)
 {
 	rtc::EnsureWinsockInit();
 	rtc::Win32Thread w32_thread;
@@ -55,8 +56,43 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 	}
 
 	rtc::InitializeSSL();
-	OAuth24DProvider oauth(authCodeUri, authPollUri);
 
+	std::unique_ptr<OAuth24DProvider> oauth;
+	if (strcmp(authCodeUri, FLAG_authCodeUri) != 0 && strcmp(authPollUri, FLAG_authPollUri) != 0)
+	{
+		oauth.reset(new OAuth24DProvider(authCodeUri, authPollUri));
+	}
+
+	// depends on oauth
+	std::unique_ptr<TurnCredentialProvider> turn;
+	if (oauth.get() != nullptr && strcmp(turnUri, FLAG_turnUri) != 0)
+	{
+		turn.reset(new TurnCredentialProvider(turnUri));
+	}
+
+	PeerConnectionClient client;
+	rtc::scoped_refptr<Conductor> conductor(
+		new rtc::RefCountedObject<Conductor>(&client, &wnd));
+
+	// set our client heartbeat interval
+	client.SetHeartbeatMs(heartbeat);
+
+	// create (but not necessarily use) async callbacks
+	TurnCredentialProvider::CredentialsRetrievedCallback credentialsRetrieved([&](const TurnCredentials& data)
+	{
+		if (data.successFlag)
+		{
+			conductor->SetTurnCredentials(data.username, data.password);
+
+			wnd.SetConnectButtonState(true);
+
+			// redraw the ui that shows the connect button only if we're currently in that ui
+			if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
+			{
+				wnd.SwitchToConnectUI();
+			}
+		}
+	});
 	OAuth24DProvider::CodeCompleteCallback codeComplete([&](const OAuth24DProvider::CodeData& data) {
 		std::wstring wcode(data.user_code.begin(), data.user_code.end());
 		std::wstring wuri(data.verification_url.begin(), data.verification_url.end());
@@ -72,12 +108,6 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 			wnd.SwitchToConnectUI();
 		}
 	});
-	oauth.SignalCodeComplete.connect(&codeComplete, &OAuth24DProvider::CodeCompleteCallback::Handle);
-	
-	PeerConnectionClient client;
-
-	client.SetHeartbeatMs(heartbeat);
-
 	AuthenticationProvider::AuthenticationCompleteCallback authComplete([&](const AuthenticationProviderResult& data) {
 		if (data.successFlag)
 		{
@@ -94,24 +124,57 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 			}
 		}
 	});
-	oauth.SignalAuthenticationComplete.connect(&authComplete, &AuthenticationProvider::AuthenticationCompleteCallback::Handle);
+
+	// if we have real turn values, configure turn
+	if (turn.get() != nullptr)
+	{
+		// disable the connect button until turn is resolved
+		wnd.SetConnectButtonState(false);
+
+		// redraw the ui that shows the code only if we're currently in that ui
+		if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
+		{
+			wnd.SwitchToConnectUI();
+		}
+
+		turn->SetAuthenticationProvider(oauth.get());
+
+		turn->SignalCredentialsRetrieved.connect(&credentialsRetrieved, &TurnCredentialProvider::CredentialsRetrievedCallback::Handle);
+	}
 
 	// if we have real auth values, indicate that we'll try and connect
-	if (authCodeUri != FLAG_authCodeUri && authPollUri != FLAG_authPollUri)
+	if (oauth.get() != nullptr)
 	{
+		
+		oauth->SignalCodeComplete.connect(&codeComplete, &OAuth24DProvider::CodeCompleteCallback::Handle);
+		oauth->SignalAuthenticationComplete.connect(&authComplete, &AuthenticationProvider::AuthenticationCompleteCallback::Handle);
+
 		wnd.SetAuthCode(L"Connecting");
 		wnd.SetAuthUri(L"Connecting");
+		
+		// redraw the ui that shows the code only if we're currently in that ui
+		if (wnd.current_ui() == DefaultMainWindow::UI::CONNECT_TO_SERVER)
+		{
+			wnd.SwitchToConnectUI();
+		}
 
+		// do auth things
+		if (turn.get() != nullptr)
+		{
+			// this will trigger oauth->Authenticate()
+			if (!turn->RequestCredentials())
+			{
+				wnd.SetAuthCode(L"FAIL");
+				wnd.SetAuthUri(L"Unable to request turn creds");
+			}
+		}
 		// if attempting to authenticate immediately fails, tell the user
-		if (!oauth.Authenticate())
+		else if (!oauth->Authenticate())
 		{
 			wnd.SetAuthCode(L"FAIL");
 			wnd.SetAuthUri(L"Unable to authenticate");
 		}
 	}
-
-	rtc::scoped_refptr<Conductor> conductor(
-		new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
 	// Main loop.
 	MSG msg;
@@ -150,6 +213,8 @@ int WINAPI wWinMain(
 	strcpy(authCodeUri, FLAG_authCodeUri);
 	char authPollUri[1024];
 	strcpy(authPollUri, FLAG_authPollUri);
+	char turnUri[1024];
+	strcpy(turnUri, FLAG_turnUri);
 	int port = FLAG_port;
 	int heartbeat = FLAG_heartbeat;
 	LPWSTR* szArglist = CommandLineToArgvW(lpCmdLine, &nArgs);
@@ -184,6 +249,18 @@ int WINAPI wWinMain(
 				heartbeat = root.get("heartbeat", FLAG_heartbeat).asInt();
 			}
 
+			if (root.isMember("turnServer"))
+			{
+				auto turnWrapper = root.get("turnServer", NULL);
+				if (turnWrapper != NULL)
+				{
+					if (turnWrapper.isMember("provider"))
+					{
+						strcpy(turnUri, turnWrapper.get("provider", FLAG_turnUri).asCString());
+					}
+				}
+			}
+
 			if (root.isMember("authentication"))
 			{
 				auto authenticationWrapper = root.get("authentication", NULL);
@@ -203,5 +280,5 @@ int WINAPI wWinMain(
 		}
 	}
 
-	return InitWebRTC(server, port, heartbeat, authCodeUri, authPollUri);
+	return InitWebRTC(server, port, heartbeat, authCodeUri, authPollUri, turnUri);
 }

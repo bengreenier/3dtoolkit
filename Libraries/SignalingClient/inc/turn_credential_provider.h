@@ -35,6 +35,20 @@ public:
 	~TurnCredentialProvider();
 
 	sigslot::signal1<const TurnCredentials&> SignalCredentialsRetrieved;
+	
+	struct CredentialsRetrievedCallback : public sigslot::has_slots<>
+	{
+		CredentialsRetrievedCallback(const std::function<void(const TurnCredentials&)>& handler) : handler_(handler)
+		{
+		}
+
+		void Handle(const TurnCredentials& data)
+		{
+			handler_(data);
+		}
+	private:
+		std::function<void(const TurnCredentials&)> handler_;
+	};
 
 	void SetAuthenticationProvider(AuthenticationProvider* authProvider);
 

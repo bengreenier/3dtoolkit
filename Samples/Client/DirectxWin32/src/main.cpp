@@ -161,14 +161,14 @@ int InitWebRTC(char* server, int port, int heartbeat, char* authCodeUri, char* a
 		// do auth things
 		if (turn.get() != nullptr)
 		{
-			// this will trigger oauth->Authenticate()
+			// this will trigger oauth->Authenticate() under the hood
 			if (!turn->RequestCredentials())
 			{
 				wnd.SetAuthCode(L"FAIL");
 				wnd.SetAuthUri(L"Unable to request turn creds");
 			}
 		}
-		// if attempting to authenticate immediately fails, tell the user
+		// if we don't have a turn provider, we just authenticate
 		else if (!oauth->Authenticate())
 		{
 			wnd.SetAuthCode(L"FAIL");

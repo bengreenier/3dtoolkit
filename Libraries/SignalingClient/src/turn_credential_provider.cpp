@@ -124,15 +124,16 @@ void TurnCredentialProvider::SocketRead(rtc::AsyncSocket* socket)
 
 			data.append(buffer, bytes);
 		} while (true);
+		
+		size_t bodyStart = data.find("\r\n\r\n");
 
-		// sometimes we get this event but the
-		// data is empty. we want to ignore that
-		if (data.empty())
+		// if we didn't have a body, something is up.
+		// we want to ignore that data
+		if (data.empty() ||
+			bodyStart == std::string::npos)
 		{
 			return;
 		}
-
-		size_t bodyStart = data.find("\r\n\r\n");
 
 		Json::Reader reader;
 		Json::Value root = NULL;

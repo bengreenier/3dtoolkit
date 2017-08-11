@@ -152,14 +152,15 @@ void OAuth24DProvider::SocketRead(rtc::AsyncSocket* socket)
 		} while (true);
 	}
 
-	// sometimes we get this event but the
-	// data is empty. we want to ignore that
-	if (data.empty())
+	size_t bodyStart = data.find("\r\n\r\n");
+
+	// if we didn't have a body, something is up.
+	// we want to ignore that data
+	if (data.empty() ||
+		bodyStart == std::string::npos)
 	{
 		return;
 	}
-
-	size_t bodyStart = data.find("\r\n\r\n");
 
 	Json::Reader reader;
 	Json::Value root = NULL;

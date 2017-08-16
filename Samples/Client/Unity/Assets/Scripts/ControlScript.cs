@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
+using Microsoft.Toolkit.ThreeD;
 
 #if !UNITY_EDITOR
 using Org.WebRtc;
@@ -35,17 +36,26 @@ public class ControlScript : MonoBehaviour
 
     public Camera LeftCamera;
     public Camera RightCamera;
-    
+
+	[Tooltip("A code provider uri of an oauth24d provider")]
+	public string CredentialCodeUri;
+
+	[Tooltip("A polling uri of an oauth24d provider")]
+	public string CredentialPollUri;
+
+	[Tooltip("A uri to a service that provides temporary turn creds")]
+	public string TemporaryTurnCredentialUri;
+
+	[Tooltip("A flag that indicates if we require authentication before communicating with the TemporaryTurnCredentialUri")]
+	public bool AuthenticateTemporaryTurnCredentials = true;
+
 #if !UNITY_EDITOR
     private Matrix4x4 leftViewProjection;
     private Matrix4x4 rightViewProjection;
     private string cameraTransformMsg;
     private WebRtcControl _webRtcControl;
-    private static readonly ConcurrentQueue<Action> _executionQueue = new ConcurrentQueue<Action>();
-
+    
     private bool enabledStereo = false;
-#else
-    private static readonly Queue<Action> _executionQueue = new Queue<Action>();
 #endif
 
     #region Graphics Low-Level Plugin DLL Setup
@@ -67,9 +77,59 @@ public class ControlScript : MonoBehaviour
         _webRtcControl.OnStatusMessageUpdate += WebRtcControlOnStatusMessageUpdate;
 
         Conductor.Instance.OnAddRemoteStream += Conductor_OnAddRemoteStream;
+
+		// if we have a temp turn uri, configure the turn client
+		if (!string.IsNullOrEmpty(TemporaryTurnCredentialUri))
+		{
+			Conductor.Instance.ConfigureTemporaryTurn(TemporaryTurnCredentialUri);
+			Conductor.Instance.TurnClient.CredentialsRetrieved += Conductor_CredentialsRetrieved;
+		}
+
+		// if we have a cred code and a cred poll
+		if (!string.IsNullOrEmpty(CredentialCodeUri) && !string.IsNullOrEmpty(CredentialPollUri))
+		{
+			// configure auth (and start auth)
+			Conductor.Instance.ConfigureAuth(CredentialCodeUri, CredentialPollUri);
+			Conductor.Instance.AuthClient.CodeComplete += Conductor_CodeCompleted;
+			Conductor.Instance.AuthClient.Authenticate();
+		}
+		// else if we require auth (and don't have it) and have a temp cred
+		else if (AuthenticateTemporaryTurnCredentials && !string.IsNullOrEmpty(TemporaryTurnCredentialUri))
+		{
+			// throw
+			throw new Exception("Authentication isn't configured, and temporary turn client requires auth");
+		}
+		// else we just have temp cred
+		else
+		{
+			// so we request creds
+			Conductor.Instance.TurnClient.RequestCredentials();
+		}
+		
+		if (Conductor.Instance.TurnClient != null)
+		{
+			Conductor.Instance.TurnClient.CredentialsRetrieved += (TemporaryTurnClient.TurnCredentials data) =>
+			{
+				Debug.Log("turn creds got " + data.http_status);
+			};
+		}
+
+		if (Conductor.Instance.AuthClient != null)
+		{
+			Conductor.Instance.AuthClient.CodeComplete += (OAuth24DClient.CodeCompletionData data) =>
+			{
+				Debug.Log("code got " + data.http_status);
+			};
+
+			Conductor.Instance.AuthClient.AuthenticationComplete += (OAuth24DClient.AuthCompletionData data) =>
+			{
+				Debug.Log("poll got " + data.http_status);
+			};
+		}
+
         _webRtcControl.Initialize();
 #endif
-    }
+	}
 
 #if !UNITY_EDITOR
     private void Conductor_OnAddRemoteStream(MediaStreamEvent evt)
@@ -88,13 +148,40 @@ public class ControlScript : MonoBehaviour
         }
         _webRtcControl.IsReadyToDisconnect = true;
     }
+
+	private void Conductor_CodeCompleted(OAuth24DClient.CodeCompletionData data)
+	{
+		if (data.http_status == 200)
+		{
+			// show the user data.device_code
+			// show the user data.verification_url
+			// direct the user to enter device_code @ verification_url in a browser
+			EnqueueAction(() => UpdateStatusText(string.Format("Visit {0} - Enter '{1}'\n", data.verification_url, data.user_code)));
+		}
+	}
+
+	private void Conductor_CredentialsRetrieved(TemporaryTurnClient.TurnCredentials data)
+	{
+		if (data.http_status == 200)
+		{
+			EnqueueAction(() => UpdateStatusText("Got temporary turn creds\n"));
+			
+			// in this case, we don't autoconnect, we wait for the user to press connect
+			EnqueueAction(() => UpdateStatusText("Ready to connect\n"));
+		}
+	}
+
 #endif
 
-    private void WebRtcControlOnInitialized()
+	private void WebRtcControlOnInitialized()
     {
         EnqueueAction(OnInitialized);
 
-        ConnectToServer();
+		// if we aren't using auth, we can auto connect
+		if (string.IsNullOrEmpty(CredentialCodeUri) && string.IsNullOrEmpty(CredentialPollUri))
+		{
+			ConnectToServer();
+		}
     }
 
     private void OnInitialized()
@@ -190,10 +277,7 @@ public class ControlScript : MonoBehaviour
 
     public void EnqueueAction(Action action)
     {
-        lock (_executionQueue)
-        {
-            _executionQueue.Enqueue(action);
-        }
+		UIThreadSingleton.Dispatch(action);
     }
 
     private void OnEnable()
@@ -268,7 +352,7 @@ public class ControlScript : MonoBehaviour
         RightCanvas.texture = primaryPlaybackTexture;
     }
 
-    private static class Plugin
+	private static class Plugin
     {
         [DllImport("MediaEngineUWP", CallingConvention = CallingConvention.StdCall, EntryPoint = "CreateMediaPlayback")]
         internal static extern void CreateMediaPlayback();
@@ -298,5 +382,5 @@ public class ControlScript : MonoBehaviour
 
         [DllImport("MediaEngineUWP", CallingConvention = CallingConvention.StdCall, EntryPoint = "Stop")]
         internal static extern void Stop();
-    }
+	}
 }

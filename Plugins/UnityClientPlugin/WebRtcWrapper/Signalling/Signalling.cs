@@ -78,6 +78,7 @@ namespace PeerConnectionClient.Signalling
         };
         private State _state;
 
+		private string _authHeader;
         private HostName _server;
         private string _port;
         private string _clientName;
@@ -122,6 +123,15 @@ namespace PeerConnectionClient.Signalling
             }
         }
 
+		/// <summary>
+		/// Set the authentication header that will be set for each request
+		/// </summary>
+		/// <param name="authHeader">the value of the header</param>
+		public void SetAuthenticationHeader(string authHeader)
+		{
+			this._authHeader = authHeader;
+		}
+
         /// <summary>
         /// Connects to the server.
         /// </summary>
@@ -143,10 +153,13 @@ namespace PeerConnectionClient.Signalling
                 _clientName = client_name;
 
                 _state = State.SIGNING_IN;
-                await ControlSocketRequestAsync(string.Format(
-                    "GET /sign_in?peer_name={0} HTTP/1.0\r\nHost: {1}\r\n\r\n",
-                    client_name,
-                    _server))
+				
+				var req = PrepareRequest("GET", $"/sign_in?peer_name={client_name}", new Dictionary<string, string>()
+				{
+					{ "Host", _server.RawName }
+				});
+
+                await ControlSocketRequestAsync(req)
                     .ConfigureAwait(false);
 
                 if (_state == State.CONNECTED)
@@ -508,10 +521,12 @@ namespace PeerConnectionClient.Signalling
                         .AsTask()
                         .ConfigureAwait(false);
 
-                    await heartbeatSocket.WriteStringAsync(string.Format(
-                        "GET /heartbeat?peer_id={0} HTTP/1.0\r\nHost: {1}\r\n\r\n",
-                        _myId,
-                        _server))
+					var req = PrepareRequest("GET", $"/heartbeat?peer_id={_myId}", new Dictionary<string, string>()
+					{
+						{ "Host", _server.RawName }
+					});
+
+                    await heartbeatSocket.WriteStringAsync(req)
                         .ConfigureAwait(false);
 
                     var readResult = await ReadIntoBufferAsync(heartbeatSocket).ConfigureAwait(false);
@@ -553,11 +568,13 @@ namespace PeerConnectionClient.Signalling
                             return;
                         }
 
-                        // Send the request
-                        await _hangingGetSocket.WriteStringAsync(string.Format(
-                            "GET /wait?peer_id={0} HTTP/1.0\r\nHost: {1}\r\n\r\n",
-                            _myId,
-                            _server))
+						// Send the request
+						var req = PrepareRequest("GET", $"/wait?peer_id={_myId}", new Dictionary<string, string>()
+						{
+							{ "Host", _server.RawName }
+						});
+
+                        await _hangingGetSocket.WriteStringAsync(req)
                             .ConfigureAwait(false);
 
                         // Read the response.
@@ -640,10 +657,12 @@ namespace PeerConnectionClient.Signalling
 
             if (_myId != -1)
             {
-                await ControlSocketRequestAsync(string.Format(
-                    "GET /sign_out?peer_id={0} HTTP/1.0\r\nHost: {1}\r\n\r\n",
-                    _myId,
-                    _server))
+				var req = PrepareRequest("GET", $"/sign_out?peer_id={_myId}", new Dictionary<string, string>()
+				{
+					{ "Host", _server.RawName }
+				});
+
+                await ControlSocketRequestAsync(req)
                     .ConfigureAwait(false);
             }
             else
@@ -698,15 +717,15 @@ namespace PeerConnectionClient.Signalling
                 return false;
             }
 
-            string buffer = string.Format(
-                "POST /message?peer_id={0}&to={1} HTTP/1.0\r\nHost: {2}\r\n" +
-                "Content-Length: {3}\r\n" +
-                "Content-Type: text/plain\r\n" +
-                "\r\n" +
-                "{4}",
-                _myId, peerId, _server, message.Length, message);
+			string req = PrepareRequest("POST", $"/message?peer_id={_myId}&to={peerId}", new Dictionary<string, string>()
+			{
+				{ "Host", _server.RawName },
+				{ "Content-Length", message.Length.ToString() },
+				{ "Content-Type", "text/plain" }
+			}, message);
+				
 
-            return await ControlSocketRequestAsync(buffer).ConfigureAwait(false);
+            return await ControlSocketRequestAsync(req).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -720,6 +739,35 @@ namespace PeerConnectionClient.Signalling
             string message = json.Stringify();
             return await SendToPeer(peerId, message).ConfigureAwait(false);
         }
+
+		private string PrepareRequest(string method, string path, Dictionary<string, string> headers = null, string data = null)
+		{
+			string res = method.ToUpper() + " " + path + "HTTP/1.1\r\n";
+
+			foreach (var pair in headers)
+			{
+				if (!string.IsNullOrEmpty(this._authHeader) && pair.Key.ToLower() == "authorization")
+				{
+					continue;
+				}
+
+				res += pair.Key + ":" + pair.Value + "\r\n";
+			}
+			
+			if (!string.IsNullOrEmpty(this._authHeader))
+			{
+				res += "Authorization: " + this._authHeader;
+			}
+
+			res += "\r\n";
+
+			if (!string.IsNullOrEmpty(data))
+			{
+				res += data + "\r\n";
+			}
+
+			return res;
+		}
     }
 
     /// <summary>

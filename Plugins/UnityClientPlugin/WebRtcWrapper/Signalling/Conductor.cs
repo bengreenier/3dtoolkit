@@ -21,6 +21,7 @@ using PeerConnectionClient.Model;
 using System.Collections.ObjectModel;
 using System.Threading;
 using static System.String;
+using System.Net.Http.Headers;
 #if ORTCLIB
 using Org.Ortc;
 using Org.Ortc.Adapter;
@@ -71,6 +72,18 @@ namespace PeerConnectionClient.Signalling
 
         private readonly Signaller _signaller;
 
+		public OAuth24DClient AuthClient
+		{
+			get;
+			private set;
+		}
+
+		public TemporaryTurnClient TurnClient
+		{
+			get;
+			private set;
+		}
+
         /// <summary>
         /// The signaller property.
         /// Helps to pass WebRTC session signals between client and server.
@@ -120,6 +133,8 @@ namespace PeerConnectionClient.Signalling
         public Peer Peer;
         private MediaStream _mediaStream;
         readonly List<RTCIceServer> _iceServers;
+		private string _turnUsername;
+		private string _turnPassword;
 
         private int _peerId = -1;
         protected bool VideoEnabled;
@@ -209,6 +224,73 @@ namespace PeerConnectionClient.Signalling
 #endif
             }
         }
+
+		/// <summary>
+		/// Configures the oauth24d auth provider
+		/// </summary>
+		/// <remarks>
+		/// The expectation is that after calling this method
+		/// you listen for the <see cref="OAuth24DClient.CodeComplete"/> event
+		/// and display data to the user
+		/// </remarks>
+		/// <example>
+		/// Conductor a;
+		/// a.ConfigureAuth("code://uri", "poll://uri");
+		/// a.AuthClient.CodeComplete += (Oauth24DClient.CodeCompletionData data) =>
+		/// {
+		///		if (data.http_status == 200)
+		///		{
+		///			// show the user data.device_code
+		///			// show the user data.verification_url
+		///			// direct the user to enter device_code @ verification_url in a browser
+		///		}
+		///	}
+		/// </example>
+		/// <param name="codeUri"></param>
+		/// <param name="pollUri"></param>
+		public void ConfigureAuth(string codeUri, string pollUri)
+		{
+			this.AuthClient = new OAuth24DClient(codeUri, pollUri);
+			
+			this.AuthClient.AuthenticationComplete += (OAuth24DClient.AuthCompletionData data) =>
+			{
+				if (data.http_status == 200)
+				{
+					this._signaller.SetAuthenticationHeader("Bearer " + data.access_code);
+
+					if (this.TurnClient != null)
+					{
+						this.TurnClient.RequestCredentials(new AuthenticationHeaderValue("Bearer", data.access_code));
+					}
+				}
+			};
+		}
+
+		/// <summary>
+		/// Configure the temporary turn client
+		/// </summary>
+		/// <remarks>
+		/// This provides temporary turn credentials to the client
+		/// Note: if you expect Authentication to be applied to the turn credential call
+		/// you must call <see cref="ConfigureAuth(string, string)"/> after this
+		/// 
+		/// Note: If turn credentials doesn't require auth you must call <c>TurnClient.RequestCredentials()</c>
+		/// after this
+		/// </remarks>
+		/// <param name="turnCredentialUri">the url to get clients from</param>
+		public void ConfigureTemporaryTurn(string turnCredentialUri)
+		{
+			this.TurnClient = new TemporaryTurnClient(turnCredentialUri);
+
+			this.TurnClient.CredentialsRetrieved += (TemporaryTurnClient.TurnCredentials data) =>
+			{
+				if (data.http_status == 200)
+				{
+					this._turnUsername = data.username;
+					this._turnPassword = data.password;
+				}
+			};
+		}
 
         /// <summary>
         /// Creates a peer connection.
@@ -1071,6 +1153,13 @@ namespace PeerConnectionClient.Signalling
                 {
                     server.Username = iceServer.Username;
                 }
+
+				// if we have locally set turn username/password, override the configured one
+				if (!string.IsNullOrEmpty(_turnUsername) && !string.IsNullOrEmpty(_turnPassword))
+				{
+					server.Username = _turnUsername;
+					server.Credential = _turnPassword;
+				}
 
                 _iceServers.Add(server);
             }

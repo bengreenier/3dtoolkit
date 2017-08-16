@@ -1102,6 +1102,7 @@ GameObject:
   - component: {fileID: 669725303}
   - component: {fileID: 669725302}
   - component: {fileID: 669725304}
+  - component: {fileID: 669725305}
   m_Layer: 8
   m_Name: Control
   m_TagString: Untagged
@@ -1159,6 +1160,10 @@ MonoBehaviour:
   RightCanvas: {fileID: 482189657}
   LeftCamera: {fileID: 1304715564}
   RightCamera: {fileID: 1264895378}
+  CredentialCodeUri: https://3dtoolkit-identity-management.azurewebsites.net/device/new
+  CredentialPollUri: https://3dtoolkit-identity-management.azurewebsites.net/device/device_code
+  TemporaryTurnCredentialUri: https://3dtoolkit-identity-management.azurewebsites.net/turnCreds
+  AuthenticateTemporaryTurnCredentials: 1
 --- !u!114 &669725304
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1173,6 +1178,17 @@ MonoBehaviour:
   leftCamera: {fileID: 1304715564}
   rightCamera: {fileID: 1264895378}
   ipdMM: 62.5
+--- !u!114 &669725305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 669725300}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0740cd14086bd8f438892cbbc1dcfd89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &677331402
 GameObject:
   m_ObjectHideFlags: 0
@@ -1249,7 +1265,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: ConnectToServer
         m_Mode: 1
         m_Arguments:
@@ -1371,7 +1387,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: ConnectToPeer
         m_Mode: 1
         m_Arguments:
@@ -1793,7 +1809,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: DisconnectFromServer
         m_Mode: 1
         m_Arguments:
@@ -1915,7 +1931,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: SendMessageToPeer
         m_Mode: 1
         m_Arguments:
@@ -2302,7 +2318,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: DisconnectFromPeer
         m_Mode: 1
         m_Arguments:
@@ -3164,7 +3180,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: ClearMessageText
         m_Mode: 1
         m_Arguments:
@@ -3514,7 +3530,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 669725303}
         m_MethodName: ClearStatusText
         m_Mode: 1
         m_Arguments:

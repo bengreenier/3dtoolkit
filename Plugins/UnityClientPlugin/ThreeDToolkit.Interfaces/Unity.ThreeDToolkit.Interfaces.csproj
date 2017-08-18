@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{AE6E6718-B06A-4466-BB22-F846D36C8ED4}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Unity.ThreeDToolkit.Interfaces</RootNamespace>
+    <AssemblyName>Unity.ThreeDToolkit.Interfaces</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+    <OutputPath>$(SolutionDir)Build\$(Platform)\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+    <IntermediateOutputPath>$(ProjectDir)Intermediate\$(Platform)\$(Configuration)\$(MSBuildProjectName)</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="IConductor.cs" />
+    <Compile Include="IConnectionStatistics.cs" />
+    <Compile Include="IIceServer.cs" />
+    <Compile Include="IPeer.cs" />
+    <Compile Include="ISignaller.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>SETLOCAL
+set TARGET_PLUGIN_PATH=$(ProjectDir)..\..\..\Samples\Client\Unity\Assets\
+echo Target Plugin Path is %25TARGET_PLUGIN_PATH%25
+mkdir "%25TARGET_PLUGIN_PATH%25Plugins"
+
+xcopy /R /I /Y "$(OutDir)$(TargetName)$(TargetExt)" "%25TARGET_PLUGIN_PATH%25Plugins"
+xcopy /R /I /Y "$(OutDir)$(TargetName).pdb" "%25TARGET_PLUGIN_PATH%25Plugins" 
+
+ENDLOCAL</PostBuildEvent>
+  </PropertyGroup>
+</Project>

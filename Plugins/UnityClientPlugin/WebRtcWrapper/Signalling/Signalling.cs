@@ -25,7 +25,7 @@ using Windows.Storage.Streams;
 
 namespace PeerConnectionClient.Signalling
 {
-    public delegate void SignedInDelegate();
+    public delegate void SignedInDelegate(string serverUri);
     public delegate void DisconnectedDelegate();
     public delegate void PeerConnectedDelegate(int id, string name);
     public delegate void PeerDisonnectedDelegate(int peer_id);
@@ -182,7 +182,7 @@ namespace PeerConnectionClient.Signalling
 
 				_state = State.CONNECTED;
 
-				OnSignedIn?.Invoke();
+				OnSignedIn?.Invoke(this._connectUri.ToString());
 
                 // Start the long polling loop without await
                 StartHangingGetReadLoop();

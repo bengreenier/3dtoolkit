@@ -46,7 +46,7 @@ namespace WebRtcWrapper
             _uiDispatcher = CoreApplication.MainView.CoreWindow.Dispatcher;
             _configFilePath = configFilePath ?? DEFAULT_CONFIG_FILE_PATH;
         }
-
+		
         #region SETUP ROUTINES
         public void Initialize()
         {
@@ -110,7 +110,7 @@ namespace WebRtcWrapper
                 });
             };
 
-            Conductor.Instance.Signaller.OnSignedIn += () =>
+            Conductor.Instance.Signaller.OnSignedIn += (string serverUri) =>
             {
                 RunOnUiThread(() =>
                 {
@@ -119,7 +119,7 @@ namespace WebRtcWrapper
                     IsCameraEnabled = false;
                     IsConnecting = false;
 
-                    OnStatusMessageUpdate?.Invoke("Signed-In");
+                    OnStatusMessageUpdate?.Invoke("Signed-In (" + serverUri + ")");
                 });
             };
 
@@ -772,8 +772,8 @@ namespace WebRtcWrapper
 			get;
 			set;
 		}
-
-        private RTCPeerConnectionHealthStats _peerConnectionHealthStats;
+		
+		private RTCPeerConnectionHealthStats _peerConnectionHealthStats;
         public RTCPeerConnectionHealthStats PeerConnectionHealthStats
         {
             get { return _peerConnectionHealthStats; }

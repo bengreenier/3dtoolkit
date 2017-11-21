@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 0
     path: 
     guid: 2ceba1cde0a6df04ead15f92b89acb67
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/StereoSideBySideTexture.unity
     guid: e9a5c06fae8d2074d9efcbdef017eec7
+  - enabled: 1
+    path: Assets/Scenes/bengreenier_dev.unity
+    guid: 0f2402c17e9e04144b30f8e5cb39e297

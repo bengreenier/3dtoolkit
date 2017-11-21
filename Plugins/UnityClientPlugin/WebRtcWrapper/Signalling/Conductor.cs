@@ -193,9 +193,12 @@ namespace PeerConnectionClient.Signalling
 
         CancellationTokenSource _connectToPeerCancelationTokenSource;
         Task<bool> _connectToPeerTask;
+		
+		public event RTCPeerConnectionIceStateChangeEventDelegate OnIceConnectionChange;
+		public event RTCPeerConnectionIceEventDelegate OnIceCandidate;
 
-        // Public events for adding and removing the local stream
-        public event Action<MediaStreamEvent> OnAddLocalStream;
+		// Public events for adding and removing the local stream
+		public event Action<MediaStreamEvent> OnAddLocalStream;
 
         // Public events to notify about connection status
         public event Action OnPeerConnectionCreated;
@@ -338,6 +341,7 @@ namespace PeerConnectionClient.Signalling
             OnPeerConnectionCreated?.Invoke();
 
             _peerConnection.OnIceCandidate += PeerConnection_OnIceCandidate;
+			_peerConnection.OnIceConnectionChange += PeerConnection_OnIceCandidateChange;
 #if ORTCLIB
             _peerConnection.OnTrack += PeerConnection_OnAddTrack;
             _peerConnection.OnTrackGone += PeerConnection_OnRemoveTrack;
@@ -528,7 +532,9 @@ namespace PeerConnectionClient.Signalling
         /// <param name="evt">Details about RTC Peer Connection Ice event.</param>
         private void PeerConnection_OnIceCandidate(RTCPeerConnectionIceEvent evt)
         {
-            if (evt.Candidate == null) // relevant: GlobalObserver::OnIceComplete in Org.WebRtc
+			this.OnIceCandidate?.Invoke(evt);
+
+			if (evt.Candidate == null) // relevant: GlobalObserver::OnIceComplete in Org.WebRtc
             {
                 return;
             }
@@ -556,6 +562,11 @@ namespace PeerConnectionClient.Signalling
             SendMessage(json);
         }
 
+		private void PeerConnection_OnIceCandidateChange(RTCPeerConnectionIceStateChangeEvent evt)
+		{
+			this.OnIceConnectionChange?.Invoke(evt);
+		}
+
 #if ORTCLIB
         /// <summary>
         /// Invoked when the remote peer added a media track to the peer connection.
@@ -575,10 +586,10 @@ namespace PeerConnectionClient.Signalling
             OnRemoveTrack?.Invoke(evt);
         }
 #else
-        /// <summary>
-        /// Invoked when the remote peer added a media stream to the peer connection.
-        /// </summary>
-        public event Action<MediaStreamEvent> OnAddRemoteStream;
+		/// <summary>
+		/// Invoked when the remote peer added a media stream to the peer connection.
+		/// </summary>
+		public event Action<MediaStreamEvent> OnAddRemoteStream;
         private void PeerConnection_OnAddStream(MediaStreamEvent evt)
         {
             OnAddRemoteStream?.Invoke(evt);
@@ -620,7 +631,6 @@ namespace PeerConnectionClient.Signalling
             Signaller.OnPeerHangup += Signaller_OnPeerHangup;
             Signaller.OnPeerDisconnected += Signaller_OnPeerDisconnected;
             Signaller.OnServerConnectionFailure += Signaller_OnServerConnectionFailure;
-            Signaller.OnSignedIn += Signaller_OnSignedIn;
 
             _iceServers = new List<RTCIceServer>();
         }
@@ -636,14 +646,7 @@ namespace PeerConnectionClient.Signalling
             Debug.WriteLine("Conductor: Our peer hung up.");
             ClosePeerConnection();
         }
-
-        /// <summary>
-        /// Handler for Signaller's OnSignedIn event.
-        /// </summary>
-        private void Signaller_OnSignedIn()
-        {
-        }
-
+		
         /// <summary>
         /// Handler for Signaller's OnServerConnectionFailure event.
         /// </summary>

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
 using Microsoft.Toolkit.ThreeD;
+using Status;
 
 #if !UNITY_EDITOR
 using Org.WebRtc;
@@ -18,6 +19,8 @@ using Windows.Media.Core;
 
 public class ControlScript : MonoBehaviour
 {
+    public StatusBar StatusBar;
+
     public uint TextureWidth = 2560;
     public uint TextureHeight = 720;
     public uint FrameRate = 30;
@@ -65,12 +68,14 @@ public class ControlScript : MonoBehaviour
         _webRtcControl.OnInitialized += WebRtcControlOnInitialized;
         _webRtcControl.OnPeerMessageDataReceived += WebRtcControlOnPeerMessageDataReceived;
         _webRtcControl.OnStatusMessageUpdate += WebRtcControlOnStatusMessageUpdate;
-
         Conductor.Instance.OnAddRemoteStream += Conductor_OnAddRemoteStream;
+        Conductor.Instance.OnConnectionHealthStats += Conductor_OnConnectionHealthStats;
+        Conductor.Instance.OnPeerConnectionCreated += Conductor_OnPeerConnectionCreated;
+        Conductor.Instance.OnPeerConnectionCreated += Conductor_OnPeerConnectionClosed;
 
 		_webRtcControl.Initialize();
 #endif
-	}
+    }
 
 #if !UNITY_EDITOR
     private void Conductor_OnAddRemoteStream(MediaStreamEvent evt)
@@ -89,9 +94,39 @@ public class ControlScript : MonoBehaviour
         }
         _webRtcControl.IsReadyToDisconnect = true;
     }
+
+    private void Conductor_OnConnectionHealthStats(RTCPeerConnectionHealthStats stats)
+    {
+        if (this.StatusBar != null)
+        {
+            this.StatusBar.OnNetworkLatencyChange.Invoke(stats.RTT + "ms");
+        }
+    }
+
+    private void Conductor_OnPeerConnectionCreated()
+    {
+        var name = Conductor.Instance.Peer.Name;
+
+        if (this.StatusBar != null)
+        {
+            // indicates we've connected with the peer
+            this.StatusBar.OnConnectionStatusChange.Invoke(name);
+        }
+    }
+
+    private void Conductor_OnPeerConnectionClosed()
+    {
+        var name = Conductor.Instance.Peer.Name;
+
+        if (this.StatusBar != null)
+        {
+            // indicates we've disconnected from the peer
+            this.StatusBar.OnConnectionStatusChange.Invoke("Disconnected");
+        }
+    }
 #endif
 
-	private void WebRtcControlOnInitialized()
+    private void WebRtcControlOnInitialized()
     {
         EnqueueAction(OnInitialized);
 		

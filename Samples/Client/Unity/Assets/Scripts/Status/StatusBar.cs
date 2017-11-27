@@ -18,7 +18,12 @@ namespace Status
         /// </summary>
         [Serializable]
         public class UnityStringEvent : UnityEvent<string> { }
-        
+
+        /// <summary>
+        /// Is the statusbar always visible
+        /// </summary>
+        public bool AlwaysEnabled = false;
+
         /// <summary>
         /// The voice command to listen for, to toggle visibility
         /// </summary>
@@ -61,10 +66,27 @@ namespace Status
 #else
             SetVisible(false);
 #endif
-
+            if (this.AlwaysEnabled)
+            {
+                this.SetVisible(true);
+            }
+            else
+            {
 #if UNITY_WSA || UNITY_STANDALONE_WIN
-            this.recognizer = new DictationRecognizer();
-            this.recognizer.DictationResult += Recognizer_DictationResult;
+                this.recognizer = new DictationRecognizer();
+                this.recognizer.DictationResult += Recognizer_DictationResult;
+                this.recognizer.Start();
+#endif
+            }
+        }
+
+        private void OnDestroy()
+        {
+#if UNITY_WSA || UNITY_STANDALONE_WIN
+            if (this.recognizer != null)
+            {
+                this.recognizer.Stop();
+            }
 #endif
         }
 
@@ -106,6 +128,12 @@ namespace Status
         /// </summary>
         public void Show()
         {
+            // if we're always enabled, you can't show this (it's already shown)
+            if (this.AlwaysEnabled)
+            {
+                return;
+            }
+
             SetVisible(true);
         }
 
@@ -114,6 +142,12 @@ namespace Status
         /// </summary>
         public void Hide()
         {
+            // if we're always enabled, you can't hide this
+            if (this.AlwaysEnabled)
+            {
+                return;
+            }
+
             SetVisible(false);
         }
     }

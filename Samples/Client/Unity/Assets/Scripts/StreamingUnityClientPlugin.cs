@@ -35,6 +35,12 @@ public class StreamingUnityClientPlugin : IDisposable
         private set;
     }
 
+    public bool IsPlaying
+    {
+        get;
+        private set;
+    }
+
     // These events are marshalled from the underlying framework components
 
     public event GenericDelegate<int, string>.Handler PeerConnect;
@@ -48,6 +54,7 @@ public class StreamingUnityClientPlugin : IDisposable
     public event GenericDelegate<int>.Handler IceConnectionChange;
     public event GenericDelegate<string>.Handler IceCandidate;
     public event GenericDelegate<long>.Handler NetworkLatencyChange;
+    public event GenericDelegate<string>.Handler StatusMessageUpdate;
 
     private void OnPeerConnected(int val0, string val1) { ErrorOnFailure(() => { if (PeerConnect != null) this.PeerConnect(val0, val1); }); }
     private void OnPeerDisconnected(int val0) { ErrorOnFailure(() => { if (this.PeerDisconnect != null) this.PeerDisconnect(val0); }); }
@@ -60,6 +67,7 @@ public class StreamingUnityClientPlugin : IDisposable
     private void OnIceConnectionChange(int val0) { ErrorOnFailure(() => { if (this.IceConnectionChange != null) this.IceConnectionChange(val0); }); }
     private void OnIceCandidate(string val0) { ErrorOnFailure(() => { if (this.IceCandidate != null) this.IceCandidate(val0); }); }
     private void OnNetworkLatencyChange(long val0) { ErrorOnFailure(() => { if (this.NetworkLatencyChange != null) this.NetworkLatencyChange(val0); }); }
+    private void OnStatusMessageUpdate(string val0) { ErrorOnFailure(() => { if (this.StatusMessageUpdate != null) this.StatusMessageUpdate(val0); }); }
 
     /// <summary>
     /// Fired when a managed error occurs but is triggered by native code
@@ -69,54 +77,29 @@ public class StreamingUnityClientPlugin : IDisposable
     /// raised by native code
     /// </remarks>
     public event GenericDelegate<Exception>.Handler Error;
-    
+
     /// <summary>
     /// Default ctor
     /// </summary>
-    public StreamingUnityClientPlugin()
+    /// <param name="playbackImage">unity image to play on to</param>
+    public StreamingUnityClientPlugin(RawImage playbackImage)
     {
         // start with no video track
         this.HasVideoTrack = false;
 
+        // start not playing
+        this.IsPlaying = false;
+
         // initialize the playback plugin
         Native.CreateMediaPlayback();
 
-#if UNITY_WSA && !UNITY_EDITOR
-        webrtcControl = new WebRtcControl();
-
-        webrtcControl.OnInitialized += WebrtcControl_OnInitialized;
-
-        // initialize the webrtc plugin
-        webrtcControl.Initialize();
-#endif
-    }
-
-    public bool SendDataChannelMessage(string message)
-    {
-        if (!this.HasVideoTrack)
-        {
-            return false;
-        }
-
-        return false;
-    }
-
-    public void Play(RawImage playbackImage, uint framerate = DefaultFramerate)
-    {
-        if (!this.HasVideoTrack)
-        {
-            throw new InvalidOperationException("WebRTC has not yet negotiated video content");
-        }
-
-#if UNITY_WSA && !UNITY_EDITOR
-        var source = Media.CreateMedia().CreateMediaStreamSource(videoTrack, framerate, "media");
-        Native.LoadMediaStreamSource((MediaStreamSource)source);
-#endif
+        // get the texture from the native side
         IntPtr nativeTex = IntPtr.Zero;
         Native.GetPrimaryTexture((uint)playbackImage.rectTransform.rect.width,
             (uint)playbackImage.rectTransform.rect.height,
             out nativeTex);
 
+        // configure the playback image to use native texture
         playbackImage.texture = Texture2D.CreateExternalTexture((int)playbackImage.rectTransform.rect.width,
             (int)playbackImage.rectTransform.rect.height,
             TextureFormat.BGRA32,
@@ -124,17 +107,69 @@ public class StreamingUnityClientPlugin : IDisposable
             false,
             nativeTex);
 
+#if UNITY_WSA && !UNITY_EDITOR
+        this.webrtcControl = new WebRtcControl();
+
+        this.webrtcControl.OnInitialized += WebrtcControl_OnInitialized;
+        this.webrtcControl.OnStatusMessageUpdate += this.OnStatusMessageUpdate;
+
+        // initialize the webrtc plugin
+        this.webrtcControl.Initialize();
+#endif
+    }
+
+    public bool SendDataChannelMessage(string message)
+    {
+#if UNITY_WSA && !UNITY_EDITOR
+        return this.webrtcControl.SendPeerDataChannelMessage(message);
+#else
+        throw new NotImplementedException("Only WSA applications can send messages");
+#endif
+    }
+
+    public void Play(uint framerate = DefaultFramerate)
+    {
+        // no need to play again if we're already playing
+        if (this.IsPlaying)
+        {
+            return;
+        }
+
+        if (!this.HasVideoTrack)
+        {
+            Debug.Log("can't play (nvt)");
+            throw new InvalidOperationException("WebRTC has not yet negotiated video content");
+        }
+
+#if UNITY_WSA && !UNITY_EDITOR
+        var media = Media.CreateMedia();
+        var source = media.CreateMediaStreamSource(this.videoTrack, framerate, "media");
+
+        Native.LoadMediaStreamSource((MediaStreamSource)source);
+#endif
         Native.Play();
+        this.IsPlaying = true;
     }
 
     public void Stop()
     {
+        // no need to stop if we're already stopped
+        if (!this.IsPlaying)
+        {
+            return;
+        }
+
         Native.Stop();
+        this.IsPlaying = false;
     }
 
     private void WebrtcControl_OnInitialized()
     {
+        Debug.Log("Initialized");
 #if UNITY_WSA && !UNITY_EDITOR
+        // select the h264 codect
+        this.webrtcControl.SelectedVideoCodec = this.webrtcControl.VideoCodecs.FirstOrDefault(x => x.Name.Contains("H264"));
+
         // since we know we're initialized, we can now map all the events
         // from the underlying components that we need to surface here
         //
@@ -148,15 +183,6 @@ public class StreamingUnityClientPlugin : IDisposable
         Conductor.Instance.Signaller.OnDisconnected += this.OnDisconnected;
         Conductor.Instance.Signaller.OnMessageFromPeer += this.OnMessageFromPeer;
         Conductor.Instance.Signaller.OnServerConnectionFailure += this.OnServerConnectionFailure;
-        Conductor.Instance.OnAddLocalStream += (MediaStreamEvent evt) =>
-        {
-            this.videoTrack = evt.Stream.GetVideoTracks().FirstOrDefault();
-            if (this.videoTrack != null)
-            {
-                this.HasVideoTrack = true;
-            }
-            this.OnAddStream(evt.Stream.Id);
-        };
         Conductor.Instance.OnAddRemoteStream += (MediaStreamEvent evt) =>
         {
             this.videoTrack = evt.Stream.GetVideoTracks().FirstOrDefault();
@@ -164,15 +190,29 @@ public class StreamingUnityClientPlugin : IDisposable
             {
                 this.HasVideoTrack = true;
             }
+
+            Debug.Log("count: " + evt.Stream.GetVideoTracks().Count + " name: " + this.videoTrack.Id);
+            
+            this.webrtcControl.IsReadyToDisconnect = true;
+
             this.OnAddStream(evt.Stream.Id);
         };
-        Conductor.Instance.OnRemoveRemoteStream += (MediaStreamEvent evt) => { this.OnRemoveStream(evt.Stream.Id); };
+        Conductor.Instance.OnRemoveRemoteStream += (MediaStreamEvent evt) =>
+        {
+            this.OnRemoveStream(evt.Stream.Id);
+            this.videoTrack = null;
+            this.HasVideoTrack = false;
+            this.webrtcControl.IsReadyToDisconnect = false;
+        };
         Conductor.Instance.OnIceCandidate += (RTCPeerConnectionIceEvent evt) => { this.OnIceCandidate(evt.Candidate.Candidate); };
         Conductor.Instance.OnIceConnectionChange += (RTCPeerConnectionIceStateChangeEvent evt) => { this.OnIceConnectionChange((int)evt.State); };
         Conductor.Instance.OnConnectionHealthStats += (RTCPeerConnectionHealthStats evt) => { this.OnNetworkLatencyChange(evt.RTT); };
+        
+        // we connect after things are set up
+        webrtcControl.ConnectToServer();
 #endif
     }
-    
+
     /// <summary>
     /// Executes a chunk of work and emitted an <see cref="Error"/> event on failure
     /// </summary>
@@ -197,7 +237,7 @@ public class StreamingUnityClientPlugin : IDisposable
         }
     }
 
-    #region Dll Imports
+#region Dll Imports
 
     private static class Native
     {
@@ -268,9 +308,9 @@ public class StreamingUnityClientPlugin : IDisposable
         internal static extern void Stop();
     }
 
-    #endregion
+#endregion
 
-    #region IDisposable Support
+#region IDisposable Support
     private bool disposedValue = false; // To detect redundant calls
 
     protected virtual void Dispose(bool disposing)
@@ -302,9 +342,9 @@ public class StreamingUnityClientPlugin : IDisposable
         Dispose(true);
         GC.SuppressFinalize(this);
     }
-    #endregion
+#endregion
 
-    #region GenericDelegate generics
+#region GenericDelegate generics
 
     /// <summary>
     /// Helper to generate delegate signatures with generics
@@ -351,5 +391,5 @@ public class StreamingUnityClientPlugin : IDisposable
         private GenericDelegate() { }
     }
 
-    #endregion
+#endregion
 }

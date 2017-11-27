@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Toolkit.ThreeD;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -42,11 +43,16 @@ public class WebRTCClient : MonoBehaviour
     public Status.StatusBar Status = null;
 
     /// <summary>
+    /// Indicates if we should use stereo
+    /// </summary>
+    [Tooltip("Flag indicating if we should use stereo rendering")]
+    public bool ShouldUseStereo = true;
+
+    /// <summary>
     /// Indicates the current rendering approach
     /// </summary>
     /// <remarks>
-    /// When this is <c>true</c> stereo rendering using <see cref="LeftEye"/> and <see cref="RightEye"/> will be used
-    /// When this is <c>false</c> mono rendering using <see cref="LeftEye"/> will be used
+    /// This is left public to improve quick editor runtime inspection
     /// </remarks>
     [Tooltip("Flag indicating if we are currently rendering in stereo")]
     public bool IsStereo = false;
@@ -95,6 +101,10 @@ public class WebRTCClient : MonoBehaviour
     /// </summary>
     private void Awake()
     {
+        // ensure that we aren't stereo to start with (because stereo requires sending the server a message
+        // so it is impossible to start in that state)
+        this.IsStereo = false;
+
         // make sure that the render window continues to render when the game window does not have focus
         Application.runInBackground = true;
 
@@ -117,15 +127,15 @@ public class WebRTCClient : MonoBehaviour
     private void Update()
     {
         // if the plugin isn't loaded, don't do anything
-        if (this.Plugin == null)
+        if (this.Plugin == null || !this.Plugin.HasVideoTrack)
         {
             return;
         }
         
-        var leftViewProjection = this.LeftEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Left);
+        var leftViewProjection = this.LeftEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Left) * this.LeftEye.cameraToWorldMatrix;
         var rightViewProjection = this.RightEye != null ?
-            this.RightEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Right) :
-            this.LeftEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Right);
+            this.RightEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Right) * this.RightEye.cameraToWorldMatrix :
+            this.LeftEye.GetStereoProjectionMatrix(Camera.StereoscopicEye.Right) * this.LeftEye.cameraToWorldMatrix;
 
         // Builds the camera transform message.
         var leftCameraTransform = "";
@@ -146,35 +156,40 @@ public class WebRTCClient : MonoBehaviour
         var cameraTransformBody = leftCameraTransform + rightCameraTransform;
         var cameraTransformMsg =
            "{" +
-           "  \"type\":\"camera-transform-stereo\"," +
+           "  \"type\":\"camera-transform" + (this.IsStereo ? "-stereo" : "") + "\"," +
            "  \"body\":\"" + cameraTransformBody + "\"" +
            "}";
 
         this.Plugin.SendDataChannelMessage(cameraTransformMsg);
 
-        if (!this.Plugin.HasVideoTrack)
+        if (this.ShouldUseStereo && !this.IsStereo)
         {
-            if (this.IsStereo)
-            {
-                // build the stereo enabling message
-                var msg = "{" +
-                "  \"type\":\"stereo-rendering\"," +
-                "  \"body\":\"1\"" +
-                "}";
+            // build the stereo enabling message
+            var msg = "{" +
+            "  \"type\":\"stereo-rendering\"," +
+            "  \"body\":\"1\"" +
+            "}";
 
-                // enable stereo on the server
-                if (this.Plugin.SendDataChannelMessage(msg))
-                {
-                    // only play after we've enabled stereo on the server
-                    this.Plugin.Play(this.Texture);
-                }
-            }
-            else
+            Debug.Log("sending stereo");
+
+            // enable stereo on the server
+            if (this.Plugin.SendDataChannelMessage(msg))
             {
-                // play
-                this.Plugin.Play(this.Texture);
+                this.IsStereo = true;
+
+                Debug.Log("sent stereo message");
             }
         }
+
+        // start playing if we're not already playing
+        if (!this.Plugin.IsPlaying)
+        {
+            // TODO(bengreenier): this should only happen 1x...
+            Debug.Log("playing");
+
+            this.Plugin.Play();
+        }
+        
     }
 
     /// <summary>
@@ -194,15 +209,22 @@ public class WebRTCClient : MonoBehaviour
         }
 
         // Create the plugin
-        Plugin = new StreamingUnityClientPlugin();
+        Plugin = new StreamingUnityClientPlugin(this.Texture);
 
-        // TODO(bengreenier): include signaling server info
+        Plugin.StatusMessageUpdate += (string status) =>
+        {
+            Debug.Log(status);
+        };
+
         Plugin.SignIn += (string serverName) =>
         {
             // update status to the signaling server uri
             if (this.Status != null)
             {
-                this.Status.OnConnectionStatusChange.Invoke(serverName);
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnConnectionStatusChange.Invoke(serverName);
+                });
             }
         };
 
@@ -211,7 +233,10 @@ public class WebRTCClient : MonoBehaviour
             // update status to the signaling server uri
             if (this.Status != null && !this.offerPeer.HasValue)
             {
-                this.Status.OnConnectionStatusChange.Invoke("Disconnected");
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnConnectionStatusChange.Invoke("Disconnected");
+                });
             }
         };
 
@@ -242,7 +267,10 @@ public class WebRTCClient : MonoBehaviour
             // update status to whom we connected to
             if (this.Status != null && this.offerPeer.HasValue)
             {
-                this.Status.OnConnectionStatusChange.Invoke(this.peerList[this.offerPeer.Value]);
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnConnectionStatusChange.Invoke(this.peerList[this.offerPeer.Value]);
+                });
             }
         };
 
@@ -254,7 +282,10 @@ public class WebRTCClient : MonoBehaviour
             // update status to the signaling server (no peer)
             if (this.Status != null && this.offerPeer.HasValue)
             {
-                this.Status.OnConnectionStatusChange.Invoke(this.peerList[this.offerPeer.Value]);
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnConnectionStatusChange.Invoke(this.peerList[this.offerPeer.Value]);
+                });
             }
         };
 
@@ -263,7 +294,10 @@ public class WebRTCClient : MonoBehaviour
             // update status to the latest ice candidate
             if (this.Status != null)
             {
-                this.Status.OnIceStatusChange.Invoke(iceCandidate);
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnIceStatusChange.Invoke(iceCandidate);
+                });
             }
         };
 
@@ -272,7 +306,10 @@ public class WebRTCClient : MonoBehaviour
             // update status to the latest rtt value
             if (this.Status != null && this.offerPeer.HasValue)
             {
-                this.Status.OnNetworkLatencyChange.Invoke(rTT + "ms");
+                UIThreadSingleton.Dispatch(() =>
+                {
+                    this.Status.OnNetworkLatencyChange.Invoke(rTT + "ms");
+                });
             }
         };
     }

@@ -12,6 +12,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -242,7 +243,14 @@ namespace PeerConnectionClient.Signalling
             {
 				try
 				{
-					var res = await this._httpClient.GetAsync($"/wait?peer_id={_myId}");
+					var httpUri = new Uri(this._connectUri, $"/wait?peer_id={_myId}");
+					var req = (HttpWebRequest)WebRequest.Create(httpUri);
+
+					req.Headers[HttpRequestHeader.Authorization] = this._authHeader.Parameter;
+
+                    var res = (HttpWebResponse)await req.GetResponseAsync();
+
+					//var res = await this._httpClient.GetAsync($"/wait?peer_id={_myId}");
 
 					if (res.StatusCode != HttpStatusCode.OK)
 					{
@@ -250,8 +258,15 @@ namespace PeerConnectionClient.Signalling
 						return;
 					}
 
-					var body = await res.Content.ReadAsStringAsync();
-					var pragmaId = int.Parse(res.Headers.Pragma.ToString());
+					var bodyStream = res.GetResponseStream();
+					string body;
+
+					using (var sr = new StreamReader(bodyStream))
+					{
+						body = sr.ReadToEnd();
+					}
+					
+					var pragmaId = int.Parse(res.Headers[HttpRequestHeader.Pragma]);
 
 					if (!ParseServerResponse(body, pragmaId))
 					{
@@ -261,7 +276,7 @@ namespace PeerConnectionClient.Signalling
 				}
 				catch (Exception ex)
 				{
-					Debug.WriteLine("[ERROR] Signalling: wait threw: " + ex.Message + "\r\n" + ex.StackTrace);
+					Debug.WriteLine("[ERROR" + DateTime.UtcNow.ToFileTime() + "] Signalling: wait threw: " + ex.Message + "\r\n" + ex.StackTrace);
 				}
             }
         }
@@ -459,6 +474,11 @@ namespace PeerConnectionClient.Signalling
     /// </summary>
     public static class Extensions
     {
+        public static Uri With(this Uri uri, string relative)
+        {
+            return new Uri(uri, relative);
+        }
+
         public static int ParseLeadingInt(this string str)
         {
             return int.Parse(Regex.Match(str, "\\d+").Value);

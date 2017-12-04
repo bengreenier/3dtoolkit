@@ -22,7 +22,7 @@ namespace WebRtcWrapper.UnitTests
         [TestMethod]
         public void TestMethod1()
         {
-			this.mockHttp
+			//this.mockHttp
         }
     }
 }

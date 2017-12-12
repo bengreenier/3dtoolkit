@@ -17,6 +17,11 @@ namespace WebRtcWrapper.Signalling
 		/// </summary>
 		public static readonly int DisconnectedId = -1;
 
+		/// <summary>
+		/// The value we set <see cref="HeartbeatMs"/> to when it is disabled
+		/// </summary>
+		public static readonly int HeartbeatDisabled = -1;
+
 		private class Request : ISimpleHttpRequest
 		{
 			public Uri Uri { get; set; }
@@ -50,6 +55,7 @@ namespace WebRtcWrapper.Signalling
 			this.httpClient = httpClient;
 			this.connectedPeers = new Dictionary<int, string>();
 			this.Id = Signaller2.DisconnectedId;
+			this.HeartbeatMs = HeartbeatDisabled;
 
 			// attach a listener for starting the http threads
 			this.OnConnected += () =>
@@ -96,10 +102,14 @@ namespace WebRtcWrapper.Signalling
 				this.Id = int.Parse(res.Headers[HttpRequestHeader.Pragma]);
 
 				// handle the response data, emitting events as needed
-				this.ParseResponse(res.Body, this.Id);
+				if (!string.IsNullOrEmpty(res.Body))
+				{
+					this.ParseResponse(res.Body, this.Id);
+				}
 
 				// everything went great, we are now connected
 				this.IsConnected = true;
+				this.connectedUri = attemptUri;
 
 				// fire the connected event
 				this.OnConnected?.Invoke();
@@ -175,7 +185,10 @@ namespace WebRtcWrapper.Signalling
 				var messageId = int.Parse(res.Headers[HttpRequestHeader.Pragma]);
 
 				// handle the response data, emitting events as needed
-				this.ParseResponse(res.Body, messageId);
+				if (!string.IsNullOrEmpty(res.Body))
+				{
+					this.ParseResponse(res.Body, messageId);
+				}
 			});
 
 			// describe (and start running) the /heartbeat task
@@ -214,6 +227,11 @@ namespace WebRtcWrapper.Signalling
 		/// <returns>success indicator</returns>
 		private void ParseResponse(string messageBody, int messageId)
 		{
+			if (string.IsNullOrEmpty(messageBody))
+			{
+				throw new ArgumentNullException(nameof(messageBody));
+			}
+
 			// if pragmaId isn't us, it's not a notification it's a message
 			if (messageId != this.Id)
 			{

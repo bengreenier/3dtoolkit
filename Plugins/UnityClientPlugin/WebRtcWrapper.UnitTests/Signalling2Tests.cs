@@ -495,5 +495,58 @@ namespace WebRtcWrapper.UnitTests
 			}) >= 2, "missing /heartbeat call");
 		}
 
+		[TestMethod]
+		public void Signaller2_Wait_Succeeds()
+		{
+			var expectedUri = new Uri("http://unit.test");
+
+			var mockResponse = GetOkResponse(10);
+
+			// capture all the requests
+			List<ISimpleHttpRequest> capturedRequests = new List<ISimpleHttpRequest>();
+			Func<ISimpleHttpRequest, bool> captureParam = (ISimpleHttpRequest req) =>
+			{
+				if (req.Uri.PathAndQuery == "/wait?peer_id=-1")
+				{
+					capturedRequests.Add(req);
+				}
+
+				return true;
+			};
+
+			// configure the mock for the call
+			mockHttp.Setup(c => c.GetAsync(Param.Is(captureParam)))
+				.Returns(Task.Delay(100).ContinueWith(t => mockResponse.Object));
+
+			// no heartbeat for this test
+			instance.HeartbeatMs = Signaller2.HeartbeatDisabled;
+
+			// do some reflection to set the connectUri (a dependency of the heartbeat task)
+			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
+
+			// start the background tasks
+			typeof(Signaller2).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
+
+			// block execution for 1s, should be enough for 2 iterations wait
+			Task.Delay(1000).Wait();
+
+			instance.Dispose();
+
+			// 2 occurances for /wait
+			mockHttp.Verify(c => c.GetAsync(Param.IsAny<ISimpleHttpRequest>()), Occurred.AtLeast(2));
+
+			// we need to ensure we issued the /heartbeat request at least twice
+			Assert.IsTrue(capturedRequests.Count((req) =>
+			{
+				// peer_id should be -1 because we're reflecting, not using a real valid instance
+				bool match = req.Body == null &&
+					req.Uri == new Uri(expectedUri, "/wait?peer_id=-1") &&
+					req.Headers.Count == 1 &&
+					req.Headers[System.Net.HttpRequestHeader.Authorization] == "";
+
+				return match;
+			}) >= 2, "missing /wait call");
+		}
+
 	}
 }

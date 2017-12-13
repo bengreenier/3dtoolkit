@@ -35,6 +35,7 @@ namespace WebRtcWrapper.Signalling
 		string AuthenticationHeader { get; set; }
 
 		Task<bool> ConnectAsync(string uri, string client_name);
+		Task<bool> SendAsync(int peerId, string message);
 		Task<bool> DisconnectAsync();
 	}
 }

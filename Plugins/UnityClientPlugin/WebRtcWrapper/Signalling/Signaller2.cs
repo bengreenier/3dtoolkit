@@ -125,6 +125,35 @@ namespace WebRtcWrapper.Signalling
 			}
 		}
 
+		public async Task<bool> SendAsync(int peerId, string message)
+		{
+			if (!this.IsConnected)
+			{
+				throw new InvalidOperationException("Not connected");
+			}
+
+			var attemptHeaders = new WebHeaderCollection
+			{
+				[HttpRequestHeader.Authorization] = this.AuthenticationHeader
+			};
+
+			var res = await this.httpClient.PostAsync(new Request()
+			{
+				Uri = new Uri(this.connectedUri, $"/message?from={this.Id}&to={peerId}"),
+				Body = message,
+				Headers = attemptHeaders
+			});
+
+			if (res.Status != HttpStatusCode.OK)
+			{
+				// we failed to send
+				return false;
+			}
+			
+			// succeed
+			return true;
+		}
+
 		public async Task<bool> DisconnectAsync()
 		{
 			if (!this.IsConnected)

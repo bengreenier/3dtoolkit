@@ -22,6 +22,7 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using static System.String;
 using System.Net.Http.Headers;
+using WebRtcWrapper.Signalling;
 #if ORTCLIB
 using Org.Ortc;
 using Org.Ortc.Adapter;
@@ -70,7 +71,7 @@ namespace PeerConnectionClient.Signalling
             }
         }
 
-        private readonly Signaller _signaller;
+        private readonly Signaller2 _signaller;
 
 		public OAuth24DClient AuthClient
 		{
@@ -88,7 +89,7 @@ namespace PeerConnectionClient.Signalling
         /// The signaller property.
         /// Helps to pass WebRTC session signals between client and server.
         /// </summary>
-        public Signaller Signaller => _signaller;
+        public Signaller2 Signaller => _signaller;
         
         /// <summary>
         /// Video codec used in WebRTC session.
@@ -259,7 +260,7 @@ namespace PeerConnectionClient.Signalling
 			{
 				if (data.http_status == 200)
 				{
-					this._signaller.SetAuthenticationHeader(new AuthenticationHeaderValue("Bearer", data.access_code));
+					this._signaller.AuthenticationHeader = $"Bearer {data.access_code}";
 
 					if (this.TurnClient != null)
 					{
@@ -611,7 +612,7 @@ namespace PeerConnectionClient.Signalling
 #if ORTCLIB
             _signalingMode = RTCPeerConnectionSignalingMode.Json;
 #endif
-            _signaller = new Signaller();
+            _signaller = new Signaller2(new WebRequestHttpClient());
             _media = Media.CreateMedia();
 
             Signaller.OnDisconnected += Signaller_OnDisconnected;
@@ -620,7 +621,7 @@ namespace PeerConnectionClient.Signalling
             Signaller.OnPeerHangup += Signaller_OnPeerHangup;
             Signaller.OnPeerDisconnected += Signaller_OnPeerDisconnected;
             Signaller.OnServerConnectionFailure += Signaller_OnServerConnectionFailure;
-            Signaller.OnSignedIn += Signaller_OnSignedIn;
+            Signaller.OnConnected += Signaller_OnConnected;
 
             _iceServers = new List<RTCIceServer>();
         }
@@ -640,7 +641,7 @@ namespace PeerConnectionClient.Signalling
         /// <summary>
         /// Handler for Signaller's OnSignedIn event.
         /// </summary>
-        private void Signaller_OnSignedIn()
+        private void Signaller_OnConnected()
         {
         }
 
@@ -730,7 +731,7 @@ namespace PeerConnectionClient.Signalling
                             if (!connectResult)
                             {
                                 Debug.WriteLine("[Error] Conductor: Failed to initialize our PeerConnection instance");
-                                await Signaller.SignOut();
+                                await Signaller.DisconnectAsync();
                                 return;
                             }
                             else if (_peerId != peerId)
@@ -876,24 +877,24 @@ namespace PeerConnectionClient.Signalling
         /// Starts the login to server process.
         /// </summary>
         /// <param name="uri">what to connect to</param>
-        public void StartLogin(string uri, string peerName = "")
+        public async void StartLogin(string uri, string peerName = "")
         {
-            if (_signaller.IsConnected())
+            if (_signaller.IsConnected)
             {
                 return;
             }
 
-            _signaller.Connect(uri, peerName == String.Empty ? GetLocalPeerName() : peerName);
+            await _signaller.ConnectAsync(uri, peerName == String.Empty ? GetLocalPeerName() : peerName);
         }
        
         /// <summary>
         /// Calls to disconnect the user from the server.
         /// </summary>
-        public async Task DisconnectFromServer()
+        public async void DisconnectFromServer()
         {
-            if (_signaller.IsConnected())
+            if (_signaller.IsConnected)
             {
-                await _signaller.SignOut();
+                await _signaller.DisconnectAsync();
             }
         }
 
@@ -1023,10 +1024,9 @@ namespace PeerConnectionClient.Signalling
         /// Helper method to send a message to a peer.
         /// </summary>
         /// <param name="json">Message body.</param>
-        private void SendMessage(IJsonValue json)
+        private async void SendMessage(IJsonValue json)
         {
-            // Don't await, send it async.
-            var task = _signaller.SendToPeer(_peerId, json);
+            await _signaller.SendAsync(_peerId, json.ToString());
         }
 
         /// <summary>
@@ -1034,7 +1034,7 @@ namespace PeerConnectionClient.Signalling
         /// </summary>
         private async Task SendHangupMessage()
         {
-            await _signaller.SendToPeer(_peerId, "BYE");
+            await _signaller.SendAsync(_peerId, "BYE");
         }
 
         /// <summary>

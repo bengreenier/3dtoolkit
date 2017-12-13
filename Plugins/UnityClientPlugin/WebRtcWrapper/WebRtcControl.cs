@@ -110,7 +110,7 @@ namespace WebRtcWrapper
                 });
             };
 
-            Conductor.Instance.Signaller.OnSignedIn += () =>
+            Conductor.Instance.Signaller.OnConnected += () =>
             {
                 RunOnUiThread(() =>
                 {
@@ -403,8 +403,8 @@ namespace WebRtcWrapper
                         jsonPackage.Add(o.Key, o.Value);
                     }
 
-                    await Conductor.Instance.Signaller.SendToPeer(
-                        SelectedPeer.Id, jsonPackage)
+                    await Conductor.Instance.Signaller.SendAsync(
+                        SelectedPeer.Id, jsonPackage.ToString())
                         .ConfigureAwait(false);
                 }
             });
@@ -416,7 +416,7 @@ namespace WebRtcWrapper
             {
                 IsConnecting = true;
                 await LoadSettings().ConfigureAwait(false);                
-                Conductor.Instance.Signaller.SetHeartbeatMs(Convert.ToInt32(HeartBeat.Value));
+                Conductor.Instance.Signaller.HeartbeatMs =Convert.ToInt32(HeartBeat.Value);
 				Conductor.Instance.ConfigureAuth(AuthCodeUri, AuthPollUri);
 				Conductor.Instance.ConfigureTemporaryTurn(TempTurnUri);
 
@@ -520,10 +520,10 @@ namespace WebRtcWrapper
             await Conductor.Instance.DisconnectFromPeer().ConfigureAwait(false);
         }
 
-        public async void DisconnectFromServer()
+        public void DisconnectFromServer()
         {
             IsDisconnecting = true;
-            await Conductor.Instance.DisconnectFromServer().ConfigureAwait(false);
+			Conductor.Instance.DisconnectFromServer();
             Peers?.Clear();
         }
         #endregion

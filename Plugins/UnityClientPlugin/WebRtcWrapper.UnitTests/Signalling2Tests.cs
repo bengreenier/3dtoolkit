@@ -6,6 +6,7 @@ using WebRtcWrapper.Signalling;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace WebRtcWrapper.UnitTests
 {
@@ -111,11 +112,25 @@ namespace WebRtcWrapper.UnitTests
 			return mockResponse;
 		}
 
+		private Mock<ISimpleHttpClient> mockHttp;
+		private Signaller2 instance;
+
+		[TestInitialize]
+		public void Init()
+		{
+			this.mockHttp = Mock.Create<ISimpleHttpClient>();
+			this.instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
+		}
+
+		[TestCleanup]
+		public void Cleanup()
+		{
+			this.instance.Dispose();
+		}
+
 		[TestMethod]
 		public void Signaller2_Constructor()
 		{
-			var instance = new Signaller2(Mock.Create<ISimpleHttpClient>().Object);
-
 			Assert.AreEqual(null, instance.AuthenticationHeader);
 			Assert.AreEqual(Signaller2.HeartbeatDisabled, instance.HeartbeatMs);
 			Assert.AreEqual(Signaller2.DisconnectedId, instance.Id);
@@ -132,8 +147,7 @@ namespace WebRtcWrapper.UnitTests
 
 			// allocate our ingoing mocks (call validation)
 			var expectedSignInResponse = GetOkResponse(expectedPragmaId);
-			var mockHttp = Mock.Create<ISimpleHttpClient>();
-
+			
 			// allocate our outgoing mocks (data validation)
 			var expectedFirstRequest = GetRequest($"{expectedBaseUri}/sign_in?peer_name={expectedPeerName}");
 			var expectedParallelRequests = new ISimpleHttpRequest[] {
@@ -183,9 +197,6 @@ namespace WebRtcWrapper.UnitTests
 			mockHttp.Setup(c => c.GetAsync(Param.Is(isMatch)))
 				.Returns(Task.FromResult(expectedSignInResponse.Object));
 
-			// allocator our instance
-			var instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
-
 			// bind a connected handler so we can ensure it is called
 			var onConnectedCount = 0;
 			instance.OnConnected += () => { onConnectedCount++; };
@@ -208,9 +219,6 @@ namespace WebRtcWrapper.UnitTests
 		[TestMethod]
 		public void Signaller2_ConnectAsync_Fails()
 		{
-			var mockHttp = Mock.Create<ISimpleHttpClient>();
-			var instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
-
 			// non-200 status code
 			{
 				var mockResponse = Mock.Create<ISimpleHttpResponse>();
@@ -293,8 +301,7 @@ namespace WebRtcWrapper.UnitTests
 
 			// allocate our ingoing mocks (call validation)
 			var expectedSignOutResponse = GetOkResponse(expectedPragmaId);
-			var mockHttp = Mock.Create<ISimpleHttpClient>();
-
+			
 			// allocate our outgoing mocks (data validation)
 			var expectedFirstRequest = GetRequest($"{expectedBaseUri}/sign_out?peer_id={expectedPragmaId}");
 
@@ -310,10 +317,7 @@ namespace WebRtcWrapper.UnitTests
 			// configure the mock for the call
 			mockHttp.Setup(c => c.GetAsync(Param.Is(captureParam)))
 				.Returns(Task.FromResult(expectedSignOutResponse.Object));
-
-			// allocator our instance
-			var instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
-
+			
 			// bind a disconnected handler so we can ensure it is called
 			var onDisconnectedCount = 0;
 			instance.OnDisconnected += () => { onDisconnectedCount++; };
@@ -362,20 +366,19 @@ namespace WebRtcWrapper.UnitTests
 		[TestMethod]
 		public void Signaller2_DisconnectAsync_Fails()
 		{
-			var mockHttp = Mock.Create<ISimpleHttpClient>();
 			var expectedSignOutResponse = GetOkResponse(10);
-
-			var instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
 			
 			// configure the mock for the call
 			mockHttp.Setup(c => c.GetAsync(Param.IsAny<ISimpleHttpRequest>()))
 				.Returns(Task.FromResult(expectedSignOutResponse.Object));
 
-			// issue a connect response so we can accurately test the disconnect failures
-			var connectResult = instance.ConnectAsync("http://unit.test", "test").Result;
+			// force things to look connected
+			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, new Uri("http://unit.test"));
+			typeof(Signaller2).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "Id").SetValue(instance, 10);
+			typeof(Signaller2).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "IsConnected").SetValue(instance, true);
 
 			// ensure we've connected
-			Assert.AreEqual(true, connectResult);
+			Assert.AreEqual(10, instance.Id);
 			Assert.AreEqual(true, instance.IsConnected);
 
 			// non-200 status code
@@ -437,6 +440,59 @@ namespace WebRtcWrapper.UnitTests
 					Assert.AreEqual(expectedException, thrownAtCallsite.InnerException);
 				}
 			}
+		}
+
+		[TestMethod]
+		public void Signaller2_Heartbeat_Succeeds()
+		{
+			var expectedUri = new Uri("http://unit.test");
+
+			var mockResponse = GetOkResponse(10);
+
+			// capture all the requests
+			List<ISimpleHttpRequest> capturedRequests = new List<ISimpleHttpRequest>();
+			Func<ISimpleHttpRequest, bool> captureParam = (ISimpleHttpRequest req) =>
+			{
+				if (req.Uri.PathAndQuery == "/heartbeat?peer_id=-1")
+				{
+					capturedRequests.Add(req);
+				}
+
+				return true;
+			};
+
+			// configure the mock for the call
+			mockHttp.Setup(c => c.GetAsync(Param.Is(captureParam)))
+				.Returns(Task.FromResult(mockResponse.Object));
+
+			// we'll use a 0.5s beat for our test
+			instance.HeartbeatMs = 500;
+
+			// do some reflection to set the connectUri (a dependency of the heartbeat task)
+			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
+
+			// start the background tasks
+			typeof(Signaller2).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
+
+			// block execution for 1.5s, should be enough for 2 iterations heartbeat
+			Task.Delay(1500).Wait();
+
+			instance.Dispose();
+			
+			// 2 occcurances for /heartbeat and 2 occurances for /wait
+			mockHttp.Verify(c => c.GetAsync(Param.IsAny<ISimpleHttpRequest>()), Occurred.AtLeast(4));
+			
+			// we need to ensure we issued the /heartbeat request at least twice
+			Assert.IsTrue(capturedRequests.Count((req) =>
+			{
+				// peer_id should be -1 because we're reflecting, not using a real valid instance
+				bool match = req.Body == null &&
+					req.Uri == new Uri(expectedUri, "/heartbeat?peer_id=-1") &&
+					req.Headers.Count == 1 &&
+					req.Headers[System.Net.HttpRequestHeader.Authorization] == "";
+
+				return match;
+			}) >= 2, "missing /heartbeat call");
 		}
 
 	}

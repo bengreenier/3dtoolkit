@@ -163,60 +163,64 @@ namespace WebRtcWrapper.Signalling
 		private void StartBackgroundHttp()
 		{
 			// describe (and start running) the /wait task
-			this.waitEndpointTask = CancellableTask.Run(async () =>
+			this.waitEndpointTask = CancellableTask.Run(async (CancellationToken token) =>
 			{
-				var attemptHeaders = new WebHeaderCollection
+				while (!token.IsCancellationRequested)
 				{
-					[HttpRequestHeader.Authorization] = this.AuthenticationHeader
-				};
+					var attemptHeaders = new WebHeaderCollection
+					{
+						[HttpRequestHeader.Authorization] = this.AuthenticationHeader
+					};
 
-				var res = await this.httpClient.GetAsync(new Request()
-				{
-					Uri = new Uri(this.connectedUri, $"/wait?peer_id={this.Id}"),
-					Headers = attemptHeaders
-				});
+					var res = await this.httpClient.GetAsync(new Request()
+					{
+						Uri = new Uri(this.connectedUri, $"/wait?peer_id={this.Id}"),
+						Headers = attemptHeaders
+					});
 
-				if (res.Status != HttpStatusCode.OK)
-				{
-					// TODO(bengreenier): this might be good to log
-					return;
-				}
-				
-				var messageId = int.Parse(res.Headers[HttpRequestHeader.Pragma]);
+					if (res.Status != HttpStatusCode.OK)
+					{
+						// TODO(bengreenier): this might be good to log
+						continue;
+					}
 
-				// handle the response data, emitting events as needed
-				if (!string.IsNullOrEmpty(res.Body))
-				{
-					this.ParseResponse(res.Body, messageId);
+					var messageId = int.Parse(res.Headers[HttpRequestHeader.Pragma]);
+
+					// handle the response data, emitting events as needed
+					if (!string.IsNullOrEmpty(res.Body))
+					{
+						this.ParseResponse(res.Body, messageId);
+					}
 				}
 			});
 
 			// describe (and start running) the /heartbeat task
-			this.heartbeatEndpointTask = CancellableTask.Run(async () =>
+			this.heartbeatEndpointTask = CancellableTask.Run(async (CancellationToken token) =>
 			{
-				var attemptHeaders = new WebHeaderCollection
+				while (!token.IsCancellationRequested)
 				{
-					[HttpRequestHeader.Authorization] = this.AuthenticationHeader
-				};
+					var attemptHeaders = new WebHeaderCollection
+					{
+						[HttpRequestHeader.Authorization] = this.AuthenticationHeader
+					};
 
-				var res = await this.httpClient.GetAsync(new Request()
-				{
-					Uri = new Uri(this.connectedUri, $"/heartbeat?peer_id={this.Id}"),
-					Headers = attemptHeaders
-				});
-				
-				// TODO(bengreenier): might be good to log if res.Status != HttpStatusCode.OK
-				return;
+					var res = await this.httpClient.GetAsync(new Request()
+					{
+						Uri = new Uri(this.connectedUri, $"/heartbeat?peer_id={this.Id}"),
+						Headers = attemptHeaders
+					});
+
+					// TODO(bengreenier): might be good to log if res.Status != HttpStatusCode.OK
+					await Task.Delay(this.HeartbeatMs);
+				}
 			});
 		}
 
 		private void StopBackgroundHttp()
 		{
 			this.waitEndpointTask?.Cancel();
-			this.waitEndpointTask?.Task.Wait();
 
 			this.heartbeatEndpointTask?.Cancel();
-			this.heartbeatEndpointTask?.Task.Wait();
 		}
 
 		/// <summary>

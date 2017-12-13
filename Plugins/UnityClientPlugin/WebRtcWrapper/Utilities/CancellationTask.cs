@@ -16,20 +16,47 @@ namespace WebRtcWrapper.Utilities
 			private set;
 		}
 		
-		public static CancellableTask Run(Action action)
+		public static CancellableTask Run(Action<CancellationToken> action)
 		{
 			var source = new CancellationTokenSource();
 
-			return new CancellableTask()
+			var ct = new CancellableTask()
 			{
 				cancellationSource = source,
-				Task = Task.Run(action, source.Token)
 			};
+
+			ct.Task = Task.Run(() => action(source.Token), source.Token);
+
+			return ct;
 		}
 
-		public void Cancel()
+		public void Cancel(bool skipWait = false)
 		{
 			this.cancellationSource.Cancel();
+
+			if (!skipWait)
+			{
+				try
+				{
+					this.Task.Wait();
+				}
+				catch (AggregateException ex)
+				{
+					var remainingAe = new List<Exception>();
+					foreach (var e in ex.InnerExceptions)
+					{
+						if (e.GetType() != typeof(TaskCanceledException))
+						{
+							remainingAe.Add(e);
+						}
+					}
+
+					if (remainingAe.Count > 0)
+					{
+						throw new AggregateException(remainingAe);
+					}
+				}
+			}
 		}
 	}
 }

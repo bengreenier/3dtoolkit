@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using HyperMock;
 using WebRtcWrapper.Signalling;
@@ -11,7 +10,7 @@ using System.Reflection;
 namespace WebRtcWrapper.UnitTests
 {
     [TestClass]
-    public class Signalling2Tests
+    public class SignallingTests
     {
 		public class ThreadsafeWrappedClient : ISimpleHttpClient
 		{
@@ -113,13 +112,13 @@ namespace WebRtcWrapper.UnitTests
 		}
 
 		private Mock<ISimpleHttpClient> mockHttp;
-		private Signaller2 instance;
+		private Signaller instance;
 
 		[TestInitialize]
 		public void Init()
 		{
 			this.mockHttp = Mock.Create<ISimpleHttpClient>();
-			this.instance = new Signaller2(new ThreadsafeWrappedClient(mockHttp.Object));
+			this.instance = new Signaller(new ThreadsafeWrappedClient(mockHttp.Object));
 		}
 
 		[TestCleanup]
@@ -132,8 +131,8 @@ namespace WebRtcWrapper.UnitTests
 		public void Signaller2_Constructor()
 		{
 			Assert.AreEqual(null, instance.AuthenticationHeader);
-			Assert.AreEqual(Signaller2.HeartbeatDisabled, instance.HeartbeatMs);
-			Assert.AreEqual(Signaller2.DisconnectedId, instance.Id);
+			Assert.AreEqual(Signaller.HeartbeatDisabled, instance.HeartbeatMs);
+			Assert.AreEqual(Signaller.DisconnectedId, instance.Id);
 			Assert.AreEqual(false, instance.IsConnected);
 		}
 
@@ -334,7 +333,7 @@ namespace WebRtcWrapper.UnitTests
 
 			// ensure results are as expected
 			Assert.AreEqual(true, disconnectResult);
-			Assert.AreEqual(Signaller2.DisconnectedId, instance.Id);
+			Assert.AreEqual(Signaller.DisconnectedId, instance.Id);
 			Assert.AreEqual(false, instance.IsConnected);
 			Assert.AreEqual(1, onDisconnectedCount);
 
@@ -373,9 +372,9 @@ namespace WebRtcWrapper.UnitTests
 				.Returns(Task.FromResult(expectedSignOutResponse.Object));
 
 			// force things to look connected
-			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, new Uri("http://unit.test"));
-			typeof(Signaller2).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "Id").SetValue(instance, 10);
-			typeof(Signaller2).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "IsConnected").SetValue(instance, true);
+			typeof(Signaller).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, new Uri("http://unit.test"));
+			typeof(Signaller).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "Id").SetValue(instance, 10);
+			typeof(Signaller).GetProperties(BindingFlags.Instance | BindingFlags.Public).First(p => p.Name == "IsConnected").SetValue(instance, true);
 
 			// ensure we've connected
 			Assert.AreEqual(10, instance.Id);
@@ -469,10 +468,10 @@ namespace WebRtcWrapper.UnitTests
 			instance.HeartbeatMs = 500;
 
 			// do some reflection to set the connectUri (a dependency of the heartbeat task)
-			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
+			typeof(Signaller).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
 
 			// start the background tasks
-			typeof(Signaller2).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
+			typeof(Signaller).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
 
 			// block execution for 1.5s, should be enough for 2 iterations heartbeat
 			Task.Delay(1500).Wait();
@@ -519,13 +518,13 @@ namespace WebRtcWrapper.UnitTests
 				.Returns(Task.Delay(100).ContinueWith(t => mockResponse.Object));
 
 			// no heartbeat for this test
-			instance.HeartbeatMs = Signaller2.HeartbeatDisabled;
+			instance.HeartbeatMs = Signaller.HeartbeatDisabled;
 
 			// do some reflection to set the connectUri (a dependency of the heartbeat task)
-			typeof(Signaller2).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
+			typeof(Signaller).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).First(p => p.Name == "connectedUri").SetValue(instance, expectedUri);
 
 			// start the background tasks
-			typeof(Signaller2).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
+			typeof(Signaller).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).First(m => m.Name == "StartBackgroundHttp").Invoke(instance, null);
 
 			// block execution for 1s, should be enough for 2 iterations wait
 			Task.Delay(1000).Wait();

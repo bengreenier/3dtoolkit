@@ -71,7 +71,7 @@ namespace PeerConnectionClient.Signalling
             }
         }
 
-        private readonly Signaller2 _signaller;
+        private readonly Signaller _signaller;
 
 		public OAuth24DClient AuthClient
 		{
@@ -89,7 +89,7 @@ namespace PeerConnectionClient.Signalling
         /// The signaller property.
         /// Helps to pass WebRTC session signals between client and server.
         /// </summary>
-        public Signaller2 Signaller => _signaller;
+        public Signaller Signaller => _signaller;
         
         /// <summary>
         /// Video codec used in WebRTC session.
@@ -612,7 +612,7 @@ namespace PeerConnectionClient.Signalling
 #if ORTCLIB
             _signalingMode = RTCPeerConnectionSignalingMode.Json;
 #endif
-            _signaller = new Signaller2(new WebRequestHttpClient());
+            _signaller = new Signaller(new WebRequestHttpClient());
             _media = Media.CreateMedia();
 
             Signaller.OnDisconnected += Signaller_OnDisconnected;

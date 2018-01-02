@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WebRtcWrapper.Utilities;
 
 namespace WebRtcWrapper.Signalling
 {
-	public class Signaller2 : ISignaller
+	public class Signaller : ISignaller
 	{
 		/// <summary>
 		/// The value we set <see cref="Id"/> to when <see cref="IsConnected"/> is false
@@ -50,11 +47,11 @@ namespace WebRtcWrapper.Signalling
 		private CancellableTask waitEndpointTask;
 		private CancellableTask heartbeatEndpointTask;
 
-		public Signaller2(ISimpleHttpClient httpClient)
+		public Signaller(ISimpleHttpClient httpClient)
 		{
 			this.httpClient = httpClient;
 			this.connectedPeers = new Dictionary<int, string>();
-			this.Id = Signaller2.DisconnectedId;
+			this.Id = Signaller.DisconnectedId;
 			this.HeartbeatMs = HeartbeatDisabled;
 
 			// attach a listener for starting the http threads
@@ -180,7 +177,7 @@ namespace WebRtcWrapper.Signalling
 			
 			// everything went great, we are now disconnected
 			this.IsConnected = false;
-			this.Id = Signaller2.DisconnectedId;
+			this.Id = Signaller.DisconnectedId;
 
 			// fire the connected event
 			this.OnDisconnected?.Invoke();

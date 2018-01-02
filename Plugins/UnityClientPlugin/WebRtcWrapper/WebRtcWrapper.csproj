@@ -77,7 +77,7 @@
     <Compile Include="Signalling\ISimpleHttpClient.cs" />
     <Compile Include="Signalling\ISignaller.cs" />
     <Compile Include="Signalling\OAuth24DClient.cs" />
-    <Compile Include="Signalling\Signaller2.cs" />
+    <Compile Include="Signalling\Signaller.cs" />
     <Compile Include="Signalling\SimpleHttpClientException.cs" />
     <Compile Include="Signalling\TemporaryTurnClient.cs" />
     <Compile Include="Signalling\WebRequestHttpClient.cs" />

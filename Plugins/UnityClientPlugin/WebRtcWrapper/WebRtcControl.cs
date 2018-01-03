@@ -416,7 +416,7 @@ namespace WebRtcWrapper
             {
                 IsConnecting = true;
                 await LoadSettings().ConfigureAwait(false);                
-                Conductor.Instance.Signaller.HeartbeatMs =Convert.ToInt32(HeartBeat.Value);
+                Conductor.Instance.Signaller.HeartbeatMs = Convert.ToInt32(HeartBeat.Value);
 				Conductor.Instance.ConfigureAuth(AuthCodeUri, AuthPollUri);
 				Conductor.Instance.ConfigureTemporaryTurn(TempTurnUri);
 

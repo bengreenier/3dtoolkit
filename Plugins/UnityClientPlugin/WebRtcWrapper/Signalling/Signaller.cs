@@ -136,7 +136,7 @@ namespace WebRtcWrapper.Signalling
 
 			var res = await this.httpClient.PostAsync(new Request()
 			{
-				Uri = new Uri(this.connectedUri, $"/message?from={this.Id}&to={peerId}"),
+				Uri = new Uri(this.connectedUri, $"/message?peer_id={this.Id}&to={peerId}"),
 				Body = message,
 				Headers = attemptHeaders
 			});
@@ -192,16 +192,18 @@ namespace WebRtcWrapper.Signalling
 			this.waitEndpointTask = CancellableTask.Run(async (CancellationToken token) =>
 			{
 				while (!token.IsCancellationRequested)
-				{
-					var attemptHeaders = new WebHeaderCollection
-					{
-						[HttpRequestHeader.Authorization] = this.AuthenticationHeader
-					};
+                {
+                    var attemptHeaders = new WebHeaderCollection();
 
-					var res = await this.httpClient.GetAsync(new Request()
-					{
-						Uri = new Uri(this.connectedUri, $"/wait?peer_id={this.Id}"),
-						Headers = attemptHeaders
+                    if (!string.IsNullOrEmpty(this.AuthenticationHeader))
+                    {
+                        attemptHeaders[HttpRequestHeader.Authorization] = this.AuthenticationHeader;
+                    }
+
+                    var res = await this.httpClient.GetAsync(new Request()
+                    {
+                        Uri = new Uri(this.connectedUri, $"/wait?peer_id={this.Id}"),
+                        Headers = attemptHeaders
 					});
 
 					if (res.Status != HttpStatusCode.OK)
@@ -225,10 +227,12 @@ namespace WebRtcWrapper.Signalling
 			{
 				while (!token.IsCancellationRequested)
 				{
-					var attemptHeaders = new WebHeaderCollection
-					{
-						[HttpRequestHeader.Authorization] = this.AuthenticationHeader
-					};
+                    var attemptHeaders = new WebHeaderCollection();
+
+                    if (!string.IsNullOrEmpty(this.AuthenticationHeader))
+                    {
+                        attemptHeaders[HttpRequestHeader.Authorization] = this.AuthenticationHeader;
+                    }
 
 					var res = await this.httpClient.GetAsync(new Request()
 					{
@@ -262,60 +266,64 @@ namespace WebRtcWrapper.Signalling
 				throw new ArgumentNullException(nameof(messageBody));
 			}
 
-			// if pragmaId isn't us, it's not a notification it's a message
-			if (messageId != this.Id)
-			{
-				// if the entire message is bye, they gone
-				if (messageBody == "BYE")
-				{
-					this.OnPeerHangup?.Invoke(messageId);
-				}
-				// otherwise, we share the message
-				else
-				{
-					this.OnMessageFromPeer?.Invoke(messageId, messageBody);
-				}
-			}
+            // if pragmaId isn't us, it's not a notification it's a message
+            if (messageId != this.Id)
+            {
+                // if the entire message is bye, they gone
+                if (messageBody == "BYE")
+                {
+                    this.OnPeerHangup?.Invoke(messageId);
+                }
+                // otherwise, we share the message
+                else
+                {
+                    this.OnMessageFromPeer?.Invoke(messageId, messageBody);
+                }
+            }
+            // otherwise it is a notification, so we parse it as such
+            else
+            {
+                // oh boy, new peers
+                var oldPeers = new Dictionary<int, string>(this.connectedPeers);
 
-			// oh boy, new peers
-			var oldPeers = new Dictionary<int, string>(this.connectedPeers);
+                // peer updates aren't incremental
+                this.connectedPeers.Clear();
 
-			// peer updates aren't incremental
-			this.connectedPeers.Clear();
+                foreach (var line in messageBody.Split('\n'))
+                {
+                    var parts = line.Split(',');
 
-			foreach (var line in messageBody.Split('\n'))
-			{
-				var parts = line.Split(',');
+                    if (parts.Length != 3)
+                    {
+                        continue;
+                    }
 
-				if (parts.Length != 3)
-				{
-					continue;
-				}
+                    var id = int.Parse(parts[1]);
 
-				var id = int.Parse(parts[1]);
+                    // indicates the peer is connected
+                    // and isn't us
+                    if (int.Parse(parts[2]) == 1 && id != this.Id)
+                    {
+                        this.connectedPeers[id] = parts[0];
+                    }
+                }
 
-				// indicates the peer is connected
-				// and isn't us
-				if (int.Parse(parts[2]) == 1 && id != this.Id)
-				{
-					this.connectedPeers[id] = parts[0];
-				}
-			}
+                foreach (var peer in this.connectedPeers)
+                {
+                    if (!oldPeers.ContainsKey(peer.Key))
+                    {
+                        this.OnPeerConnected?.Invoke(peer.Key, peer.Value);
+                    }
+                    oldPeers.Remove(peer.Key);
+                }
 
-			foreach (var peer in this.connectedPeers)
-			{
-				if (!oldPeers.ContainsKey(peer.Key))
-				{
-					this.OnPeerConnected?.Invoke(peer.Key, peer.Value);
-				}
-				oldPeers.Remove(peer.Key);
-			}
-
-			// handles disconnects that aren't respectful (and don't send /sign_out)
-			foreach (var oldPeer in oldPeers)
-			{
-				this.OnPeerDisconnected?.Invoke(oldPeer.Key);
-			}
+                // handles disconnects that aren't respectful (and don't send /sign_out)
+                foreach (var oldPeer in oldPeers)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Disconnect firing for {oldPeer.Key}\n{Environment.StackTrace}");
+                    this.OnPeerDisconnected?.Invoke(oldPeer.Key);
+                }
+            }
 		}
 
 		#region IDisposable Support

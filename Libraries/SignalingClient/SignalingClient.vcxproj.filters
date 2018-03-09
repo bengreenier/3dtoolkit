@@ -13,6 +13,9 @@
     <ClCompile Include="src\peer_connection_multi_observer.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="src\rtc_http.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\peer_connection_client.h">
@@ -28,6 +31,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="inc\peer_connection_multi_observer.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\rtc_http.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

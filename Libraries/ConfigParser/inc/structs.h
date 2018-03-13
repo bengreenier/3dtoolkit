@@ -24,6 +24,9 @@ namespace StreamingToolkit
 
 		/* Automatically calls the first connected peer	*/
 		bool			auto_call;
+
+		/* Automatically onnect to the signaling server	*/
+		bool			auto_connect;
 	} ServerAppConfig;
 
 	/*

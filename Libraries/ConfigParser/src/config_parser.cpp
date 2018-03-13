@@ -191,7 +191,12 @@ void ConfigParser::ParseServerConfig(const std::string& path, StreamingToolkit::
 
 			if (serverConfigNode.isMember("autoCall"))
 			{
-				serverConfig->server_config.auto_call = serverConfigNode.get("auto_call", "").asBool();
+				serverConfig->server_config.auto_call = serverConfigNode.get("autoCall", "").asBool();
+			}
+
+			if (serverConfigNode.isMember("autoConnect"))
+			{
+				serverConfig->server_config.auto_connect = serverConfigNode.get("autoConnect", "").asBool();
 			}
 		}
 

@@ -4,7 +4,8 @@
     "height": 720,
     "systemService": false,
     "systemCapacity": -1,
-    "autoCall":  false
+    "autoCall": false,
+    "autoConnect":  false
   },
   "serviceConfig": {
     "name": "3DStreamingRenderingService",

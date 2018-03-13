@@ -100,6 +100,28 @@ void OpenGLMultiPeerConductor::HandleSignalConnect()
 	}
 }
 
+scoped_refptr<OpenGLPeerConductor> OpenGLMultiPeerConductor::SafeAllocatePeerMapEntry(int peer_id)
+{
+	if (connected_peers_.find(peer_id) == connected_peers_.end())
+	{
+		string peer_name = signalling_client_.peers().at(peer_id);
+		connected_peers_[peer_id] = new RefCountedObject<OpenGLPeerConductor>(peer_id,
+			peer_name,
+			config_->webrtc_config,
+			peer_factory_,
+			[&, peer_id](const string& message)
+		{
+			message_queue_.push(MessageEntry(peer_id, message));
+			rtc::Thread::Current()->PostDelayed(RTC_FROM_HERE, 500, this, 0);
+		});
+
+		connected_peers_[peer_id]->SignalIceConnectionChange.connect(this, &OpenGLMultiPeerConductor::OnIceConnectionChange);
+		connected_peers_[peer_id]->SignalDataChannelMessage.connect(this, &OpenGLMultiPeerConductor::HandleDataChannelMessage);
+	}
+
+	return connected_peers_[peer_id];
+}
+
 void OpenGLMultiPeerConductor::OnSignedIn()
 {
 	should_process_queue_.store(true);
@@ -120,13 +142,6 @@ void OpenGLMultiPeerConductor::OnPeerConnected(int id, const string& name)
 	if (main_window_ && main_window_->IsWindow() && main_window_->current_ui() == MainWindow::LIST_PEERS)
 	{
 		main_window_->SwitchToPeerList(signalling_client_.peers());
-
-		// if we've got auto call enabled and a peer connects to us and we aren't connected to anyone
-		if (config_->server_config->server_config.auto_call && connected_peers_.size() == 0)
-		{
-			// connect to the peer
-			ConnectToPeer(id);
-		}
 	}
 }
 
@@ -137,24 +152,8 @@ void OpenGLMultiPeerConductor::OnPeerDisconnected(int peer_id)
 
 void OpenGLMultiPeerConductor::OnMessageFromPeer(int peer_id, const string& message)
 {
-	if (connected_peers_.find(peer_id) == connected_peers_.end())
-	{
-		string peer_name = signalling_client_.peers().at(peer_id);
-		connected_peers_[peer_id] = new RefCountedObject<OpenGLPeerConductor>(peer_id,
-			peer_name,
-			config_->webrtc_config,
-			peer_factory_,
-			[&, peer_id](const string& message)
-		{
-			message_queue_.push(MessageEntry(peer_id, message));
-			rtc::Thread::Current()->PostDelayed(RTC_FROM_HERE, 500, this, 0);
-		});
-
-		connected_peers_[peer_id]->SignalIceConnectionChange.connect(this, &OpenGLMultiPeerConductor::OnIceConnectionChange);
-		connected_peers_[peer_id]->SignalDataChannelMessage.connect(this, &OpenGLMultiPeerConductor::HandleDataChannelMessage);
-	}
-
-	connected_peers_[peer_id]->HandlePeerMessage(message);
+	auto peer = SafeAllocatePeerMapEntry(peer_id);
+	peer->HandlePeerMessage(message);
 }
 
 void OpenGLMultiPeerConductor::OnMessageSent(int err) {}
@@ -199,14 +198,10 @@ void OpenGLMultiPeerConductor::DisconnectFromServer() {}
 
 void OpenGLMultiPeerConductor::ConnectToPeer(int peer_id)
 {
-	auto it = connected_peers_.find(peer_id);
-	if (it != connected_peers_.end())
+	auto peer = SafeAllocatePeerMapEntry(peer_id);
+	if (!peer->IsConnected())
 	{
-		OpenGLPeerConductor* peer = it->second;
-		if (!peer->IsConnected())
-		{
-			peer->AllocatePeerConnection(true);
-		}
+		peer->AllocatePeerConnection(true);
 	}
 }
 

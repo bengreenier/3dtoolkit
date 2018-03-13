@@ -188,6 +188,11 @@ void ConfigParser::ParseServerConfig(const std::string& path, StreamingToolkit::
 			{
 				serverConfig->server_config.system_capacity = serverConfigNode.get("systemCapacity", "").asInt();
 			}
+
+			if (serverConfigNode.isMember("autoCall"))
+			{
+				serverConfig->server_config.auto_call = serverConfigNode.get("auto_call", "").asBool();
+			}
 		}
 
 		if (root.isMember("serviceConfig"))

@@ -1,7 +1,6 @@
 #include "pch.h"
 
 #include "defaults.h"
-#include "flagdefs.h"
 #include "directx_multi_peer_conductor.h"
 
 DirectXMultiPeerConductor::DirectXMultiPeerConductor(shared_ptr<FullServerConfig> config,
@@ -125,7 +124,7 @@ void DirectXMultiPeerConductor::OnPeerConnected(int id, const string& name)
 		main_window_->SwitchToPeerList(signalling_client_.peers());
 
 		// if we've got auto call enabled and a peer connects to us and we aren't connected to anyone
-		if (FLAG_autocall && connected_peers_.size() == 0)
+		if (config_->server_config->server_config.auto_call && connected_peers_.size() == 0)
 		{
 			// connect to the peer
 			ConnectToPeer(id);

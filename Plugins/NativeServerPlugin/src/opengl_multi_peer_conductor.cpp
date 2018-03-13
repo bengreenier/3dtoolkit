@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "defaults.h"
+#include "flagdefs.h"
 #include "opengl_multi_peer_conductor.h"
 
 OpenGLMultiPeerConductor::OpenGLMultiPeerConductor(shared_ptr<FullServerConfig> config) :
@@ -120,6 +121,13 @@ void OpenGLMultiPeerConductor::OnPeerConnected(int id, const string& name)
 	if (main_window_ && main_window_->IsWindow() && main_window_->current_ui() == MainWindow::LIST_PEERS)
 	{
 		main_window_->SwitchToPeerList(signalling_client_.peers());
+
+		// if we've got auto call enabled and a peer connects to us and we aren't connected to anyone
+		if (FLAG_autocall && connected_peers_.size() == 0)
+		{
+			// connect to the peer
+			ConnectToPeer(id);
+		}
 	}
 }
 

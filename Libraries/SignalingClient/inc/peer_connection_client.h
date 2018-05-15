@@ -62,6 +62,8 @@ public:
 
 	PeerConnectionClient();
 
+	PeerConnectionClient(SslCapableSocket::Factory socketFactory);
+
 	~PeerConnectionClient();
 
 	int id() const;

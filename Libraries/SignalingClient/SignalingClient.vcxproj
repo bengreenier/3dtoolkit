@@ -117,5 +117,6 @@
     <None Include="exports.props" />
     <None Include="packages.config" />
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\AbstractionFrameworks\exports.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -9,6 +9,7 @@
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)\inc;$(MSBuildThisFileDirectory)..\..\Libraries\WebRTC\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <Import Project="$(MSBuildThisFileDirectory)\..\AbstractionFrameworks\exports.props" />
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)\SignalingClient.vcxproj">
       <Project>{88348d78-a949-4ff8-8a0a-2934744d89d2}</Project>

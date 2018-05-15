@@ -35,7 +35,11 @@ namespace
 	const int kHeartbeatDefault = -1;
 }
 
-PeerConnectionClient::PeerConnectionClient() :
+PeerConnectionClient::PeerConnectionClient() : PeerConnectionClient(SslCapableSocket::Factory())
+{
+}
+
+PeerConnectionClient::PeerConnectionClient(SslCapableSocket::Factory socketFactory) :
 	resolver_(NULL),
     state_(NOT_CONNECTED),
     my_id_(-1),

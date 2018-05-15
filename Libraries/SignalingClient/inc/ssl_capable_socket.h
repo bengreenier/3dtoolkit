@@ -5,6 +5,8 @@
 #include "webrtc/base/asyncsocket.h"
 #include "webrtc/base/openssladapter.h"
 
+#include "CppFactory.hpp"
+
 using namespace rtc;
 
 class SslCapableSocket : public AsyncSocket, public sigslot::has_slots<>
@@ -36,6 +38,8 @@ public:
 	int EstimateMTU(uint16_t* mtu);
 	int GetOption(AsyncSocket::Option opt, int* value);
 	int SetOption(AsyncSocket::Option opt, int value);
+	
+	typedef CppFactory::Factory<SslCapableSocket, const int&, const bool&, Thread*> Factory;
 private:
 	rtc::Thread* signaling_thread_;
 	AsyncSocket* socket_;

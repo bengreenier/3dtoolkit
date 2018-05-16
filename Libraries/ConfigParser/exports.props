@@ -3,10 +3,11 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)\inc;$(MSBuildThisFileDirectory)..\..\Libraries\WebRTC\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
-  <Import Project="$(MSBuildThisFileDirectory)\..\AbstractionFrameworks\exports.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\WebRTC\exports.props" Condition="'$(WebRTC_Imported)' != 'true'"/>
+  <Import Project="$(MSBuildThisFileDirectory)..\AbstractionFrameworks\exports.props" />
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)\ConfigParser.vcxproj">
       <Project>{38E8FA5F-07BE-4022-AE99-EE8E7B45EB82}</Project>

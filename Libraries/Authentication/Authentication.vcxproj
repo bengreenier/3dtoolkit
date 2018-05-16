@@ -34,12 +34,11 @@
   <PropertyGroup>
     <OutDir>$(SolutionDir)Build\$(PlatformShortName)\$(Configuration)\Libraries\</OutDir>
     <IntDir>$(ProjectDir)Intermediate\$(PlatformShortName)\$(Configuration)\Libraries\</IntDir>
-    <LibraryPath>$(ProjectDir)..\..\Libraries\WebRTC\$(Platform)\$(Configuration)\lib;$(ProjectDir)..\..\Libraries\DirectXTK\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir);inc;$(ProjectDir)..\..\Libraries\WebRTC\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;NOMINMAX;WEBRTC_WIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir);inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -161,8 +160,11 @@
     <ClCompile Include="src\server_authentication_provider.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="exports.props" />
+    <None Include="exports.props">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\WebRTC\exports.props" Condition="'$(WebRTC_Imported)' != 'true'"/>
   <Import Project="$(MSBuildThisFileDirectory)..\SignalingClient\exports.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

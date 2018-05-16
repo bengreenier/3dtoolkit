@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="$(ThreeDToolkit_Ignore_NativeServerPlugin_All)!=true">
-    <LibraryPath>$(MSBuildThisFileDirectory)..\..\Libraries\WebRTC\$(Platform)\$(Configuration)\lib;$(MSBuildThisFileDirectory)..\..\Libraries\Nvpipe\$(PlatformShortName)\$(Configuration);$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(MSBuildThisFileDirectory)..\..\Libraries\Nvpipe\$(PlatformShortName)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
@@ -15,9 +15,10 @@
   </ItemDefinitionGroup>
    <ItemDefinitionGroup Condition="$(ThreeDToolkit_Ignore_NativeServerPlugin_All)!=true">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)\inc;$(SolutionDir)\Libraries\WebRTC\headers;$(SolutionDir)\Libraries\Freeglut\include\GL;$(SolutionDir)\Libraries\glext\include\GL;$(SolutionDir)\Libraries\Glew\include\GL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)\inc;$(SolutionDir)\Libraries\Freeglut\include\GL;$(SolutionDir)\Libraries\glext\include\GL;$(SolutionDir)\Libraries\Glew\include\GL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\..\Libraries\WebRTC\exports.props" Condition="'$(WebRTC_Imported)' != 'true'"/>
   <Import Project="$(MSBuildThisFileDirectory)..\..\Libraries\SignalingClient\exports.props" Condition="$(ThreeDToolkit_Ignore_NativeServerPlugin_All)!=true and $(ThreeDToolkit_Ignore_NativeServerPlugin_Deps)!=true" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\Libraries\Authentication\exports.props" Condition="$(ThreeDToolkit_Ignore_NativeServerPlugin_All)!=true and $(ThreeDToolkit_Ignore_NativeServerPlugin_Deps)!=true" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\Libraries\UserInterface\exports.props" Condition="$(ThreeDToolkit_Ignore_NativeServerPlugin_All)!=true and $(ThreeDToolkit_Ignore_NativeServerPlugin_Deps)!=true" />

@@ -34,12 +34,12 @@
   <PropertyGroup>
     <OutDir>$(SolutionDir)Build\$(PlatformShortName)\$(Configuration)\Libraries\</OutDir>
     <IntDir>$(ProjectDir)Intermediate\$(PlatformShortName)\$(Configuration)\Libraries\</IntDir>
-    <LibraryPath>$(ProjectDir)..\..\Libraries\WebRTC\$(Platform)\$(Configuration)\lib;$(ProjectDir)..\..\Libraries\DirectXTK\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(ProjectDir)..\..\Libraries\DirectXTK\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir);inc;$(ProjectDir)..\..\Libraries\WebRTC\headers;$(ProjectDir)..\..\..\Libraries\WebRTCUWP\libyuv\inc;$(ProjectDir)..\..\..\Libraries\DirectXTK\inc;$(ProjectDir)..\WebRTCUWP\libyuv\inc;$(ProjectDir)..\DirectXTK\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>UNICODE;_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;NOMINMAX;WEBRTC_WIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir);inc;$(ProjectDir)..\..\..\Libraries\WebRTCUWP\libyuv\inc;$(ProjectDir)..\..\..\Libraries\DirectXTK\inc;$(ProjectDir)..\WebRTCUWP\libyuv\inc;$(ProjectDir)..\DirectXTK\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UNICODE;_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -173,6 +173,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\WebRTC\exports.props" Condition="'$(WebRTC_Imported)' != 'true'"/>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

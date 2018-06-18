@@ -20,7 +20,7 @@ TurnCredentialProvider::TurnCredentialProvider(const std::string& uri) :
 	// the current thread (wrapped or existing)
 	auto socketThread = rtc::Thread::Current();
 	socketThread = socketThread == nullptr ? rtc::ThreadManager::Instance()->WrapCurrentThread() : socketThread;
-	socket_.reset(new SslCapableSocket(host_.family(), authorityPort == 443, socketThread));
+	socket_.reset(new SslCapableSocket(host_.family(), authorityPort == 443, std::shared_ptr<rtc::Thread>(socketThread)));
 
 	socket_->SignalConnectEvent.connect(this, &TurnCredentialProvider::SocketOpen);
 	socket_->SignalReadEvent.connect(this, &TurnCredentialProvider::SocketRead);

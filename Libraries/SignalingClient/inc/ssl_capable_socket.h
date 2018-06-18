@@ -4,39 +4,42 @@
 #include "webrtc/rtc_base/ssladapter.h"
 #include "webrtc/rtc_base/sslidentity.h"
 
+#include "CppFactory.hpp"
+
 using namespace rtc;
 
 class SslCapableSocket : public AsyncSocket, public sigslot::has_slots<>
 {
 public:
-	SslCapableSocket(const int& family, const bool& useSsl = false, Thread* signalingThread = nullptr);
-	~SslCapableSocket();
+	SslCapableSocket(const int& family, const bool& useSsl, std::weak_ptr<Thread> signalingThread);
+	virtual ~SslCapableSocket();
 
-	void SetUseSsl(const bool& useSsl);
-	bool GetUseSsl() const;
+	virtual void SetUseSsl(const bool& useSsl);
+	virtual bool GetUseSsl() const;
 
-	SocketAddress GetLocalAddress() const;
-	SocketAddress GetRemoteAddress() const;
-	int Bind(const SocketAddress& addr);
-	int Connect(const SocketAddress& addr);
-	int Send(const void* pv, size_t cb);
-	int SendTo(const void* pv, size_t cb, const SocketAddress& addr);
-	int Recv(void* pv, size_t cb, int64_t* timestamp);
-	int RecvFrom(void* pv,
+	virtual SocketAddress GetLocalAddress() const;
+	virtual SocketAddress GetRemoteAddress() const;
+	virtual int Bind(const SocketAddress& addr);
+	virtual int Connect(const SocketAddress& addr);
+	virtual int Send(const void* pv, size_t cb);
+	virtual int SendTo(const void* pv, size_t cb, const SocketAddress& addr);
+	virtual int Recv(void* pv, size_t cb, int64_t* timestamp);
+	virtual int RecvFrom(void* pv,
 		size_t cb,
 		SocketAddress* paddr,
 		int64_t* timestamp);
-	int Listen(int backlog);
-	AsyncSocket* Accept(SocketAddress* paddr);
-	int Close();
-	int GetError() const;
-	void SetError(int error);
-	Socket::ConnState GetState() const;
-	int EstimateMTU(uint16_t* mtu);
-	int GetOption(AsyncSocket::Option opt, int* value);
-	int SetOption(AsyncSocket::Option opt, int value);
-private:
-	rtc::Thread* signaling_thread_;
+	virtual int Listen(int backlog);
+	virtual AsyncSocket* Accept(SocketAddress* paddr);
+	virtual int Close();
+	virtual int GetError() const;
+	virtual void SetError(int error);
+	virtual Socket::ConnState GetState() const;
+	virtual int GetOption(AsyncSocket::Option opt, int* value);
+	virtual int SetOption(AsyncSocket::Option opt, int value);
+
+	typedef CppFactory::Factory<SslCapableSocket, const int&, const bool&, std::weak_ptr<Thread>> Factory;
+protected:
+	std::weak_ptr<rtc::Thread> signaling_thread_;
 	AsyncSocket* socket_;
 	std::unique_ptr<SSLAdapter> ssl_adapter_;
 

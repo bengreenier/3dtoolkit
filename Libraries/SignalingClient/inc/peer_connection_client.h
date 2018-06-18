@@ -62,6 +62,7 @@ public:
 	};
 
 	PeerConnectionClient();
+	PeerConnectionClient(std::shared_ptr<SslCapableSocket::Factory> async_socket_factory);
 
 	~PeerConnectionClient();
 
@@ -171,11 +172,12 @@ protected:
 
 	std::string PrepareRequest(const std::string& method, const std::string& fragment, std::map<std::string, std::string> headers);
 
+	std::shared_ptr<SslCapableSocket::Factory> async_socket_factory_;
 	std::vector<PeerConnectionClientObserver*> callbacks_;
 	bool server_address_ssl_;
 	rtc::SocketAddress server_address_;
 	rtc::AsyncResolver* resolver_;
-	rtc::Thread* signaling_thread_;
+	std::shared_ptr<rtc::Thread> signaling_thread_;
 	std::unique_ptr<SslCapableSocket> control_socket_;
 	std::unique_ptr<SslCapableSocket> capacity_socket_;
 	std::unique_ptr<SslCapableSocket> hanging_get_;

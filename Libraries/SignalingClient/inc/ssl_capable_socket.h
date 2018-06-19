@@ -11,7 +11,9 @@ using namespace rtc;
 class SslCapableSocket : public AsyncSocket, public sigslot::has_slots<>
 {
 public:
-	SslCapableSocket(const int& family, const bool& useSsl, std::weak_ptr<Thread> signalingThread);
+	SslCapableSocket(const int& family, const bool& use_ssl, std::weak_ptr<Thread> signaling_thread);
+	SslCapableSocket(std::unique_ptr<AsyncSocket> wrapped_socket, const bool& use_ssl, std::weak_ptr<Thread> signaling_thread);
+
 	virtual ~SslCapableSocket();
 
 	virtual void SetUseSsl(const bool& useSsl);
@@ -40,7 +42,7 @@ public:
 	typedef CppFactory::Factory<SslCapableSocket, const int&, const bool&, std::weak_ptr<Thread>> Factory;
 protected:
 	std::weak_ptr<rtc::Thread> signaling_thread_;
-	AsyncSocket* socket_;
+	std::unique_ptr<AsyncSocket> socket_;
 	std::unique_ptr<SSLAdapter> ssl_adapter_;
 
 	void MapUnderlyingEvents(AsyncSocket* provider, AsyncSocket* oldProvider = nullptr);

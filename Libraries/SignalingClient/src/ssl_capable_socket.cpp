@@ -24,20 +24,25 @@ namespace
 	}
 }
 
-SslCapableSocket::SslCapableSocket(const int& family, const bool& useSsl, std::weak_ptr<Thread> signalingThread) :
-	socket_(CreateClientSocket(family)),
-	ssl_adapter_(nullptr),
-	signaling_thread_(signalingThread)
+SslCapableSocket::SslCapableSocket(const int& family, const bool& use_ssl, std::weak_ptr<Thread> signaling_thread) :
+	SslCapableSocket(std::unique_ptr<AsyncSocket>(CreateClientSocket(family)), use_ssl, signaling_thread)
 {
-	MapUnderlyingEvents(socket_);
-	SetUseSsl(useSsl);
+}
+
+SslCapableSocket::SslCapableSocket(std::unique_ptr<AsyncSocket> wrapped_socket, const bool& use_ssl, std::weak_ptr<Thread> signaling_thread) :
+	socket_(std::move(wrapped_socket)),
+	ssl_adapter_(nullptr),
+	signaling_thread_(signaling_thread)
+{
+	MapUnderlyingEvents(socket_.get());
+	SetUseSsl(use_ssl);
 }
 
 SslCapableSocket::~SslCapableSocket()
 {
 	if (ssl_adapter_.get() == nullptr)
 	{
-		delete socket_;
+		delete socket_.release();
 	}
 }
 
@@ -45,14 +50,14 @@ void SslCapableSocket::SetUseSsl(const bool& useSsl)
 {
 	if (useSsl && ssl_adapter_.get() == nullptr)
 	{
-		ssl_adapter_.reset(SSLAdapter::Create(socket_));
+		ssl_adapter_.reset(SSLAdapter::Create(socket_.get()));
 		ssl_adapter_->SetMode(rtc::SSL_MODE_TLS);
-		MapUnderlyingEvents(ssl_adapter_.get(), socket_);
+		MapUnderlyingEvents(ssl_adapter_.get(), socket_.get());
 	}
 	else if (!useSsl && ssl_adapter_.get() != nullptr)
 	{
 		ssl_adapter_.reset(nullptr);
-		MapUnderlyingEvents(socket_);
+		MapUnderlyingEvents(socket_.get());
 	}
 }
 

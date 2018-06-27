@@ -25,6 +25,29 @@
 #include "webrtc/modules/video_capture/video_capture_factory.h"
 #include "webrtc/media/base/fakevideocapturer.h"
 
+#include "webrtc/api/audio_codecs/builtin_audio_decoder_factory.h"
+#include "webrtc/api/audio_codecs/builtin_audio_encoder_factory.h"
+#include "webrtc/test/fake_audio_device.h"
+
+namespace webrtc {
+	static rtc::scoped_refptr<PeerConnectionFactoryInterface>
+		CreatePeerConnectionFactory_NoAudio() {
+		auto audio_encoder_factory = webrtc::CreateBuiltinAudioEncoderFactory();
+		auto audio_decoder_factory = webrtc::CreateBuiltinAudioDecoderFactory();
+
+		// TODO(bengreenier): should we leak this?
+		auto adm = new webrtc::FakeAudioDeviceModule();
+
+		return webrtc::CreatePeerConnectionFactoryWithAudioMixer(
+			nullptr /*network_thread*/, nullptr /*worker_thread*/,
+			nullptr /*signaling_thread*/, adm,
+			audio_encoder_factory, audio_decoder_factory,
+			nullptr /*video_encoder_factory*/, nullptr /*video_decoder_factory*/,
+			nullptr /*audio_mixer*/);
+	}
+
+}  // namespace webrtc
+
 // Names used for a IceCandidate JSON object.
 const char kCandidateSdpMidName[] = "sdpMid";
 const char kCandidateSdpMlineIndexName[] = "sdpMLineIndex";
@@ -103,7 +126,7 @@ bool Conductor::InitializePeerConnection()
 	RTC_DCHECK(peer_connection_factory_.get() == NULL);
 	RTC_DCHECK(peer_connection_.get() == NULL);
 
-	peer_connection_factory_  = webrtc::CreatePeerConnectionFactory();
+	peer_connection_factory_  = webrtc::CreatePeerConnectionFactory_NoAudio();
 
 	if (!peer_connection_factory_.get())
 	{

@@ -3,6 +3,29 @@
 #include "defaults.h"
 #include "multi_peer_conductor.h"
 
+#include "webrtc/api/audio_codecs/builtin_audio_decoder_factory.h"
+#include "webrtc/api/audio_codecs/builtin_audio_encoder_factory.h"
+#include "webrtc/test/fake_audio_device.h"
+
+namespace webrtc {
+	static rtc::scoped_refptr<PeerConnectionFactoryInterface>
+		CreatePeerConnectionFactory_NoAudio() {
+		auto audio_encoder_factory = webrtc::CreateBuiltinAudioEncoderFactory();
+		auto audio_decoder_factory = webrtc::CreateBuiltinAudioDecoderFactory();
+
+		// TODO(bengreenier): should we leak this?
+		auto adm = new webrtc::FakeAudioDeviceModule();
+
+		return webrtc::CreatePeerConnectionFactoryWithAudioMixer(
+			nullptr /*network_thread*/, nullptr /*worker_thread*/,
+			nullptr /*signaling_thread*/, adm,
+			audio_encoder_factory, audio_decoder_factory,
+			nullptr /*video_encoder_factory*/, nullptr /*video_decoder_factory*/,
+			nullptr /*audio_mixer*/);
+	}
+
+}  // namespace webrtc
+
 MultiPeerConductor::MultiPeerConductor(shared_ptr<FullServerConfig> config) :
 	config_(config),
 	main_window_(nullptr),
@@ -23,7 +46,8 @@ MultiPeerConductor::MultiPeerConductor(shared_ptr<FullServerConfig> config) :
 		cur_capacity_ = max_capacity_;
 	}
 
-	peer_factory_ = webrtc::CreatePeerConnectionFactory();
+	peer_factory_ = webrtc::CreatePeerConnectionFactory_NoAudio();
+	
 	process_thread_ = rtc::Thread::Create();
 	process_thread_->Start(this);
 }
